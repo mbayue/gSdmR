@@ -1,0 +1,139 @@
+"""Database connection management, schema initialization, and seed data."""
+
+import aiosqlite
+import bcrypt
+
+from config import (
+    DB_PATH,
+    DEFAULT_ADMIN_USERNAME,
+    DEFAULT_ADMIN_PASSWORD,
+    DEFAULT_API_KEY,
+)
+
+# SQL schema definitions
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    base_url TEXT NOT NULL,
+    api_key TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS model_providers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    model_id INTEGER NOT NULL,
+    provider_id INTEGER NOT NULL,
+    provider_model TEXT NOT NULL DEFAULT '',
+    priority INTEGER NOT NULL,
+    FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    UNIQUE(model_id, provider_id),
+    UNIQUE(model_id, priority)
+);
+
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS api_keys (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    key_value TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS api_key_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key_id INTEGER NOT NULL,
+    model_id INTEGER NOT NULL,
+    FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE,
+    FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
+    UNIQUE(api_key_id, model_id)
+);
+"""
+
+# Default providers to seed on first run
+DEFAULT_PROVIDERS = [
+    {"name": "bluesminds", "base_url": "https://api.bluesminds.com/v1", "api_key": "sk-yLmkgOMpH4qdK1bnGHxN7oICTv9cYvCfu4PEX1fuvZvC4ABJ"},
+    {"name": "freemodel", "base_url": "https://api.freemodel.dev/v1", "api_key": "fe_oa_4562ef11a983fab9aecfa66cc93989b78a16ee25262f83e5"},
+    {"name": "forge-gateway", "base_url": "https://forge-gateway-api.fly.dev/v1", "api_key": "fg-20b6fff1454248cf934963c7b7b3ad81"},
+    {"name": "iamhc", "base_url": "https://api.iamhc.cn/v1", "api_key": "sk-ItRgKuQLekrGvntZiVRYtpiDsSCYTMKjORUHK7dy6NVaqcDg"},
+]
+
+
+async def get_db() -> aiosqlite.Connection:
+    """Get an async SQLite database connection with foreign keys enabled."""
+    db = await aiosqlite.connect(DB_PATH)
+    db.row_factory = aiosqlite.Row
+    await db.execute("PRAGMA foreign_keys = ON")
+    return db
+
+
+async def init_db() -> None:
+    """Initialize the database schema and seed default data.
+
+    Creates all tables if they don't exist, then inserts seed data
+    (providers, admin user, default API key) only if not already present.
+    """
+    db = await get_db()
+    try:
+        # Create tables
+        await db.executescript(SCHEMA_SQL)
+        await db.commit()
+
+        # Seed default providers
+        for provider in DEFAULT_PROVIDERS:
+            await db.execute(
+                """
+                INSERT OR IGNORE INTO providers (name, base_url, api_key)
+                VALUES (?, ?, ?)
+                """,
+                (provider["name"], provider["base_url"], provider["api_key"]),
+            )
+            # Update existing providers with new API keys if they were empty
+            await db.execute(
+                """
+                UPDATE providers SET api_key = ?, base_url = ?
+                WHERE name = ? AND api_key = ''
+                """,
+                (provider["api_key"], provider["base_url"], provider["name"]),
+            )
+
+        # Seed default admin user
+        password_hash = bcrypt.hashpw(
+            DEFAULT_ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()
+        ).decode("utf-8")
+        await db.execute(
+            """
+            INSERT OR IGNORE INTO users (username, password_hash)
+            VALUES (?, ?)
+            """,
+            (DEFAULT_ADMIN_USERNAME, password_hash),
+        )
+
+        # Seed default API key
+        await db.execute(
+            """
+            INSERT OR IGNORE INTO api_keys (key_value, name)
+            VALUES (?, ?)
+            """,
+            (DEFAULT_API_KEY, "default"),
+        )
+
+        await db.commit()
+    finally:
+        await db.close()
