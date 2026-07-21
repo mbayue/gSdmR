@@ -17,31 +17,28 @@ async def get_providers_for_model(model_name: str) -> list[dict]:
     Returns an empty list if the model is not found or has no active providers.
     """
     db = await get_db()
-    try:
-        cursor = await db.execute(
-            """
-            SELECT p.id, p.name, p.base_url, p.api_key, mp.provider_model
-            FROM model_providers mp
-            JOIN providers p ON p.id = mp.provider_id
-            WHERE mp.model_id = (SELECT id FROM models WHERE name = ?)
-            AND p.is_active = 1
-            ORDER BY mp.priority ASC
-            """,
-            (model_name,),
-        )
-        rows = await cursor.fetchall()
-        return [
-            {
-                "id": row["id"],
-                "name": row["name"],
-                "base_url": row["base_url"],
-                "api_key": row["api_key"],
-                "provider_model": row["provider_model"],
-            }
-            for row in rows
-        ]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        """
+        SELECT p.id, p.name, p.base_url, p.api_key, mp.provider_model
+        FROM model_providers mp
+        JOIN providers p ON p.id = mp.provider_id
+        WHERE mp.model_id = (SELECT id FROM models WHERE name = ?)
+        AND p.is_active = 1
+        ORDER BY mp.priority ASC
+        """,
+        (model_name,),
+    )
+    rows = await cursor.fetchall()
+    return [
+        {
+            "id": row["id"],
+            "name": row["name"],
+            "base_url": row["base_url"],
+            "api_key": row["api_key"],
+            "provider_model": row["provider_model"],
+        }
+        for row in rows
+    ]
 
 
 def log_failure(provider_name: str, error_type: str, model_name: str) -> None:

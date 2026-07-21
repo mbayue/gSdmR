@@ -1,4 +1,10 @@
-"""Database connection management, schema initialization, and seed data."""
+"""Database connection management, schema initialization, and seed data.
+
+Uses a singleton connection pattern with WAL mode for better concurrency.
+The shared connection is created on startup and closed on shutdown.
+"""
+
+from __future__ import annotations
 
 import aiosqlite
 import bcrypt
@@ -64,6 +70,25 @@ CREATE TABLE IF NOT EXISTS api_key_models (
     FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE,
     UNIQUE(api_key_id, model_id)
 );
+
+CREATE TABLE IF NOT EXISTS usage_logs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    api_key_id INTEGER NOT NULL,
+    model_name TEXT NOT NULL,
+    provider_name TEXT,
+    endpoint TEXT NOT NULL,
+    status_code INTEGER NOT NULL,
+    latency_ms INTEGER NOT NULL,
+    prompt_tokens INTEGER DEFAULT 0,
+    completion_tokens INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (api_key_id) REFERENCES api_keys(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_usage_logs_api_key ON usage_logs(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at);
+CREATE INDEX IF NOT EXISTS idx_usage_logs_model ON usage_logs(model_name);
 """
 
 # Default providers to seed on first run
@@ -75,12 +100,32 @@ DEFAULT_PROVIDERS = [
 ]
 
 
+# Shared connection singleton
+_db: aiosqlite.Connection | None = None
+
+
 async def get_db() -> aiosqlite.Connection:
-    """Get an async SQLite database connection with foreign keys enabled."""
-    db = await aiosqlite.connect(DB_PATH)
-    db.row_factory = aiosqlite.Row
-    await db.execute("PRAGMA foreign_keys = ON")
-    return db
+    """Get the shared database connection.
+
+    Returns the singleton connection. Callers should NOT close this —
+    it's managed by the app lifespan.
+    """
+    global _db
+    if _db is None:
+        _db = await aiosqlite.connect(DB_PATH)
+        _db.row_factory = aiosqlite.Row
+        await _db.execute("PRAGMA foreign_keys = ON")
+        await _db.execute("PRAGMA journal_mode = WAL")
+        await _db.execute("PRAGMA busy_timeout = 5000")
+    return _db
+
+
+async def close_db() -> None:
+    """Close the shared database connection. Called on app shutdown."""
+    global _db
+    if _db is not None:
+        await _db.close()
+        _db = None
 
 
 async def init_db() -> None:
@@ -90,50 +135,47 @@ async def init_db() -> None:
     (providers, admin user, default API key) only if not already present.
     """
     db = await get_db()
-    try:
-        # Create tables
-        await db.executescript(SCHEMA_SQL)
-        await db.commit()
 
-        # Seed default providers
-        for provider in DEFAULT_PROVIDERS:
-            await db.execute(
-                """
-                INSERT OR IGNORE INTO providers (name, base_url, api_key)
-                VALUES (?, ?, ?)
-                """,
-                (provider["name"], provider["base_url"], provider["api_key"]),
-            )
-            # Update existing providers with new API keys if they were empty
-            await db.execute(
-                """
-                UPDATE providers SET api_key = ?, base_url = ?
-                WHERE name = ? AND api_key = ''
-                """,
-                (provider["api_key"], provider["base_url"], provider["name"]),
-            )
+    # Create tables
+    await db.executescript(SCHEMA_SQL)
+    await db.commit()
 
-        # Seed default admin user
-        password_hash = bcrypt.hashpw(
-            DEFAULT_ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()
-        ).decode("utf-8")
+    # Seed default providers
+    for provider in DEFAULT_PROVIDERS:
         await db.execute(
             """
-            INSERT OR IGNORE INTO users (username, password_hash)
-            VALUES (?, ?)
+            INSERT OR IGNORE INTO providers (name, base_url, api_key)
+            VALUES (?, ?, ?)
             """,
-            (DEFAULT_ADMIN_USERNAME, password_hash),
+            (provider["name"], provider["base_url"], provider["api_key"]),
         )
-
-        # Seed default API key
         await db.execute(
             """
-            INSERT OR IGNORE INTO api_keys (key_value, name)
-            VALUES (?, ?)
+            UPDATE providers SET api_key = ?, base_url = ?
+            WHERE name = ? AND api_key = ''
             """,
-            (DEFAULT_API_KEY, "default"),
+            (provider["api_key"], provider["base_url"], provider["name"]),
         )
 
-        await db.commit()
-    finally:
-        await db.close()
+    # Seed default admin user
+    password_hash = bcrypt.hashpw(
+        DEFAULT_ADMIN_PASSWORD.encode("utf-8"), bcrypt.gensalt()
+    ).decode("utf-8")
+    await db.execute(
+        """
+        INSERT OR IGNORE INTO users (username, password_hash)
+        VALUES (?, ?)
+        """,
+        (DEFAULT_ADMIN_USERNAME, password_hash),
+    )
+
+    # Seed default API key
+    await db.execute(
+        """
+        INSERT OR IGNORE INTO api_keys (key_value, name)
+        VALUES (?, ?)
+        """,
+        (DEFAULT_API_KEY, "default"),
+    )
+
+    await db.commit()

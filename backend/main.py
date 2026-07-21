@@ -9,11 +9,14 @@ from fastapi.openapi.utils import get_openapi
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Application lifespan: initialize database on startup."""
-    from database import init_db
+    """Application lifespan: initialize database on startup, close on shutdown."""
+    from database import init_db, close_db
+    from services.logging import setup_logging
 
+    setup_logging()
     await init_db()
     yield
+    await close_db()
 
 
 app = FastAPI(
@@ -78,6 +81,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Security headers middleware
+from middleware.security import SecurityHeadersMiddleware
+app.add_middleware(SecurityHeadersMiddleware)
+
 
 from routers.auth import router as auth_router
 from routers.providers import router as providers_router
@@ -85,6 +92,7 @@ from routers.models import router as models_router
 from routers.proxy import router as proxy_router
 from routers.api_keys import router as api_keys_router
 from routers.backup import router as backup_router
+from routers.usage import router as usage_router
 
 app.include_router(proxy_router)
 app.include_router(auth_router, include_in_schema=False)
@@ -92,6 +100,7 @@ app.include_router(providers_router, include_in_schema=False)
 app.include_router(models_router, include_in_schema=False)
 app.include_router(api_keys_router, include_in_schema=False)
 app.include_router(backup_router, include_in_schema=False)
+app.include_router(usage_router, include_in_schema=False)
 
 
 @app.get("/health", include_in_schema=False)

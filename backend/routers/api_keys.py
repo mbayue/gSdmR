@@ -73,12 +73,9 @@ async def _build_key_response(db, row) -> dict:
 async def list_api_keys(username: str = Depends(get_current_user)):
     """List all API keys with their allowed models."""
     db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM api_keys ORDER BY id")
-        rows = await cursor.fetchall()
-        return [await _build_key_response(db, row) for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM api_keys ORDER BY id")
+    rows = await cursor.fetchall()
+    return [await _build_key_response(db, row) for row in rows]
 
 
 @router.post("", status_code=201)
@@ -87,43 +84,40 @@ async def create_api_key(
 ):
     """Create a new API key. Returns the full key value (only shown once)."""
     db = await get_db()
-    try:
-        key_value = generate_api_key()
+    key_value = generate_api_key()
 
-        cursor = await db.execute(
-            "INSERT INTO api_keys (key_value, name) VALUES (?, ?)",
-            (key_value, body.name),
+    cursor = await db.execute(
+        "INSERT INTO api_keys (key_value, name) VALUES (?, ?)",
+        (key_value, body.name),
+    )
+    key_id = cursor.lastrowid
+
+    # Insert model restrictions
+    for model_id in body.model_ids:
+        # Verify model exists
+        check = await db.execute("SELECT id FROM models WHERE id = ?", (model_id,))
+        if not await check.fetchone():
+            raise HTTPException(status_code=400, detail=f"Model with id {model_id} does not exist")
+        await db.execute(
+            "INSERT INTO api_key_models (api_key_id, model_id) VALUES (?, ?)",
+            (key_id, model_id),
         )
-        key_id = cursor.lastrowid
 
-        # Insert model restrictions
-        for model_id in body.model_ids:
-            # Verify model exists
-            check = await db.execute("SELECT id FROM models WHERE id = ?", (model_id,))
-            if not await check.fetchone():
-                raise HTTPException(status_code=400, detail=f"Model with id {model_id} does not exist")
-            await db.execute(
-                "INSERT INTO api_key_models (api_key_id, model_id) VALUES (?, ?)",
-                (key_id, model_id),
-            )
+    await db.commit()
 
-        await db.commit()
+    # Return full key (only time it's shown)
+    cursor = await db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,))
+    row = await cursor.fetchone()
+    allowed_models = await _get_allowed_models(db, key_id)
 
-        # Return full key (only time it's shown)
-        cursor = await db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,))
-        row = await cursor.fetchone()
-        allowed_models = await _get_allowed_models(db, key_id)
-
-        return {
-            "id": row["id"],
-            "name": row["name"],
-            "key_value": key_value,  # full key shown once
-            "is_active": True,
-            "allowed_models": allowed_models,
-            "created_at": row["created_at"],
-        }
-    finally:
-        await db.close()
+    return {
+        "id": row["id"],
+        "name": row["name"],
+        "key_value": key_value,  # full key shown once
+        "is_active": True,
+        "allowed_models": allowed_models,
+        "created_at": row["created_at"],
+    }
 
 
 @router.put("/{key_id}")
@@ -132,37 +126,34 @@ async def update_api_key(
 ):
     """Update an API key's name, active status, or model restrictions."""
     db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,))
-        existing = await cursor.fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="API key not found")
+    cursor = await db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,))
+    existing = await cursor.fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="API key not found")
 
-        if body.name is not None:
-            await db.execute("UPDATE api_keys SET name = ? WHERE id = ?", (body.name, key_id))
+    if body.name is not None:
+        await db.execute("UPDATE api_keys SET name = ? WHERE id = ?", (body.name, key_id))
 
-        if body.is_active is not None:
-            await db.execute("UPDATE api_keys SET is_active = ? WHERE id = ?", (int(body.is_active), key_id))
+    if body.is_active is not None:
+        await db.execute("UPDATE api_keys SET is_active = ? WHERE id = ?", (int(body.is_active), key_id))
 
-        if body.model_ids is not None:
-            # Replace model restrictions
-            await db.execute("DELETE FROM api_key_models WHERE api_key_id = ?", (key_id,))
-            for model_id in body.model_ids:
-                check = await db.execute("SELECT id FROM models WHERE id = ?", (model_id,))
-                if not await check.fetchone():
-                    raise HTTPException(status_code=400, detail=f"Model with id {model_id} does not exist")
-                await db.execute(
-                    "INSERT INTO api_key_models (api_key_id, model_id) VALUES (?, ?)",
-                    (key_id, model_id),
-                )
+    if body.model_ids is not None:
+        # Replace model restrictions
+        await db.execute("DELETE FROM api_key_models WHERE api_key_id = ?", (key_id,))
+        for model_id in body.model_ids:
+            check = await db.execute("SELECT id FROM models WHERE id = ?", (model_id,))
+            if not await check.fetchone():
+                raise HTTPException(status_code=400, detail=f"Model with id {model_id} does not exist")
+            await db.execute(
+                "INSERT INTO api_key_models (api_key_id, model_id) VALUES (?, ?)",
+                (key_id, model_id),
+            )
 
-        await db.commit()
+    await db.commit()
 
-        cursor = await db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,))
-        row = await cursor.fetchone()
-        return await _build_key_response(db, row)
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM api_keys WHERE id = ?", (key_id,))
+    row = await cursor.fetchone()
+    return await _build_key_response(db, row)
 
 
 @router.delete("/{key_id}")
@@ -171,13 +162,10 @@ async def delete_api_key(
 ):
     """Delete an API key."""
     db = await get_db()
-    try:
-        cursor = await db.execute("SELECT id FROM api_keys WHERE id = ?", (key_id,))
-        if not await cursor.fetchone():
-            raise HTTPException(status_code=404, detail="API key not found")
+    cursor = await db.execute("SELECT id FROM api_keys WHERE id = ?", (key_id,))
+    if not await cursor.fetchone():
+        raise HTTPException(status_code=404, detail="API key not found")
 
-        await db.execute("DELETE FROM api_keys WHERE id = ?", (key_id,))
-        await db.commit()
-        return {"message": "deleted"}
-    finally:
-        await db.close()
+    await db.execute("DELETE FROM api_keys WHERE id = ?", (key_id,))
+    await db.commit()
+    return {"message": "deleted"}

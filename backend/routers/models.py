@@ -71,12 +71,9 @@ async def _validate_providers(db, providers) -> None:
 async def list_models(username: str = Depends(get_current_user)):
     """List all models with their provider mappings sorted by priority."""
     db = await get_db()
-    try:
-        cursor = await db.execute("SELECT * FROM models ORDER BY id")
-        rows = await cursor.fetchall()
-        return [await _build_model_response(db, row) for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute("SELECT * FROM models ORDER BY id")
+    rows = await cursor.fetchall()
+    return [await _build_model_response(db, row) for row in rows]
 
 
 @router.post("", response_model=ModelResponse, status_code=201)
@@ -85,42 +82,39 @@ async def create_model(
 ):
     """Create a new model with provider mappings."""
     db = await get_db()
-    try:
-        # Check for duplicate name
-        cursor = await db.execute(
-            "SELECT id FROM models WHERE name = ?", (body.name,)
+    # Check for duplicate name
+    cursor = await db.execute(
+        "SELECT id FROM models WHERE name = ?", (body.name,)
+    )
+    if await cursor.fetchone():
+        raise HTTPException(
+            status_code=409, detail=f"Model '{body.name}' already exists"
         )
-        if await cursor.fetchone():
-            raise HTTPException(
-                status_code=409, detail=f"Model '{body.name}' already exists"
-            )
 
-        await _validate_providers(db, body.providers)
+    await _validate_providers(db, body.providers)
 
-        cursor = await db.execute(
-            "INSERT INTO models (name) VALUES (?)",
-            (body.name,),
+    cursor = await db.execute(
+        "INSERT INTO models (name) VALUES (?)",
+        (body.name,),
+    )
+    model_id = cursor.lastrowid
+
+    for mapping in body.providers:
+        await db.execute(
+            """
+            INSERT INTO model_providers (model_id, provider_id, provider_model, priority)
+            VALUES (?, ?, ?, ?)
+            """,
+            (model_id, mapping.provider_id, mapping.provider_model, mapping.priority),
         )
-        model_id = cursor.lastrowid
 
-        for mapping in body.providers:
-            await db.execute(
-                """
-                INSERT INTO model_providers (model_id, provider_id, provider_model, priority)
-                VALUES (?, ?, ?, ?)
-                """,
-                (model_id, mapping.provider_id, mapping.provider_model, mapping.priority),
-            )
+    await db.commit()
 
-        await db.commit()
-
-        cursor = await db.execute(
-            "SELECT * FROM models WHERE id = ?", (model_id,)
-        )
-        row = await cursor.fetchone()
-        return await _build_model_response(db, row)
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT * FROM models WHERE id = ?", (model_id,)
+    )
+    row = await cursor.fetchone()
+    return await _build_model_response(db, row)
 
 
 @router.put("/{model_id}", response_model=ModelResponse)
@@ -131,67 +125,64 @@ async def update_model(
 ):
     """Update an existing model (name and/or provider mappings)."""
     db = await get_db()
-    try:
+    cursor = await db.execute(
+        "SELECT * FROM models WHERE id = ?", (model_id,)
+    )
+    existing = await cursor.fetchone()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Model not found")
+
+    has_updates = False
+
+    if body.name is not None:
         cursor = await db.execute(
-            "SELECT * FROM models WHERE id = ?", (model_id,)
+            "SELECT id FROM models WHERE name = ? AND id != ?",
+            (body.name, model_id),
         )
-        existing = await cursor.fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Model not found")
-
-        has_updates = False
-
-        if body.name is not None:
-            cursor = await db.execute(
-                "SELECT id FROM models WHERE name = ? AND id != ?",
-                (body.name, model_id),
+        if await cursor.fetchone():
+            raise HTTPException(
+                status_code=409,
+                detail=f"Model '{body.name}' already exists",
             )
-            if await cursor.fetchone():
-                raise HTTPException(
-                    status_code=409,
-                    detail=f"Model '{body.name}' already exists",
-                )
-            await db.execute(
-                "UPDATE models SET name = ?, updated_at = datetime('now') WHERE id = ?",
-                (body.name, model_id),
-            )
-            has_updates = True
-
-        if body.providers is not None:
-            if len(body.providers) == 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail="At least one provider mapping is required",
-                )
-            await _validate_providers(db, body.providers)
-
-            await db.execute(
-                "DELETE FROM model_providers WHERE model_id = ?", (model_id,)
-            )
-            for mapping in body.providers:
-                await db.execute(
-                    """
-                    INSERT INTO model_providers (model_id, provider_id, provider_model, priority)
-                    VALUES (?, ?, ?, ?)
-                    """,
-                    (model_id, mapping.provider_id, mapping.provider_model, mapping.priority),
-                )
-            has_updates = True
-
-        if has_updates:
-            await db.execute(
-                "UPDATE models SET updated_at = datetime('now') WHERE id = ?",
-                (model_id,),
-            )
-            await db.commit()
-
-        cursor = await db.execute(
-            "SELECT * FROM models WHERE id = ?", (model_id,)
+        await db.execute(
+            "UPDATE models SET name = ?, updated_at = datetime('now') WHERE id = ?",
+            (body.name, model_id),
         )
-        row = await cursor.fetchone()
-        return await _build_model_response(db, row)
-    finally:
-        await db.close()
+        has_updates = True
+
+    if body.providers is not None:
+        if len(body.providers) == 0:
+            raise HTTPException(
+                status_code=400,
+                detail="At least one provider mapping is required",
+            )
+        await _validate_providers(db, body.providers)
+
+        await db.execute(
+            "DELETE FROM model_providers WHERE model_id = ?", (model_id,)
+        )
+        for mapping in body.providers:
+            await db.execute(
+                """
+                INSERT INTO model_providers (model_id, provider_id, provider_model, priority)
+                VALUES (?, ?, ?, ?)
+                """,
+                (model_id, mapping.provider_id, mapping.provider_model, mapping.priority),
+            )
+        has_updates = True
+
+    if has_updates:
+        await db.execute(
+            "UPDATE models SET updated_at = datetime('now') WHERE id = ?",
+            (model_id,),
+        )
+        await db.commit()
+
+    cursor = await db.execute(
+        "SELECT * FROM models WHERE id = ?", (model_id,)
+    )
+    row = await cursor.fetchone()
+    return await _build_model_response(db, row)
 
 
 @router.delete("/{model_id}")
@@ -200,15 +191,12 @@ async def delete_model(
 ):
     """Delete a model. CASCADE removes associated model_providers entries."""
     db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT id FROM models WHERE id = ?", (model_id,)
-        )
-        if not await cursor.fetchone():
-            raise HTTPException(status_code=404, detail="Model not found")
+    cursor = await db.execute(
+        "SELECT id FROM models WHERE id = ?", (model_id,)
+    )
+    if not await cursor.fetchone():
+        raise HTTPException(status_code=404, detail="Model not found")
 
-        await db.execute("DELETE FROM models WHERE id = ?", (model_id,))
-        await db.commit()
-        return {"message": "deleted"}
-    finally:
-        await db.close()
+    await db.execute("DELETE FROM models WHERE id = ?", (model_id,))
+    await db.commit()
+    return {"message": "deleted"}

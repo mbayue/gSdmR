@@ -12,7 +12,9 @@ from pydantic import BaseModel, Field
 
 from database import get_db
 from middleware.api_key import validate_api_key
+from middleware.rate_limit import check_rate_limit
 from services.routing import route_request
+from services.usage import UsageRecord, RequestTimer, log_usage, extract_token_usage
 
 router = APIRouter(tags=["proxy"])
 
@@ -104,6 +106,7 @@ async def openai_chat_completions(
     body_schema: ChatCompletionRequest = Body(...),
     key_info: dict = Depends(validate_api_key),
 ):
+    await check_rate_limit(request, key_info)
     body = await request.json()
     model_name = body.get("model")
 
@@ -118,7 +121,33 @@ async def openai_chat_completions(
         return denied
 
     is_streaming = body.get("stream", False)
-    return await route_request(model_name=model_name, request_body=body, endpoint_path="chat/completions", is_streaming=is_streaming)
+
+    with RequestTimer() as timer:
+        response = await route_request(model_name=model_name, request_body=body, endpoint_path="chat/completions", is_streaming=is_streaming)
+
+    # Log usage in background
+    status_code = response.status_code if hasattr(response, "status_code") else 200
+    tokens = (0, 0, 0)
+    if hasattr(response, "body"):
+        import json as _json
+        try:
+            tokens = extract_token_usage(_json.loads(response.body))
+        except Exception:
+            pass
+
+    await log_usage(UsageRecord(
+        api_key_id=key_info["key_id"],
+        model_name=model_name,
+        provider_name=None,
+        endpoint="chat/completions",
+        status_code=status_code,
+        latency_ms=timer.elapsed_ms,
+        prompt_tokens=tokens[0],
+        completion_tokens=tokens[1],
+        total_tokens=tokens[2],
+    ))
+
+    return response
 
 
 @router.post("/v1/messages", summary="Anthropic Messages",
@@ -128,6 +157,7 @@ async def anthropic_messages(
     body_schema: AnthropicRequest = Body(...),
     key_info: dict = Depends(validate_api_key),
 ):
+    await check_rate_limit(request, key_info)
     body = await request.json()
     model_name = body.get("model")
 
@@ -142,7 +172,32 @@ async def anthropic_messages(
         return denied
 
     is_streaming = body.get("stream", False)
-    return await route_request(model_name=model_name, request_body=body, endpoint_path="messages", is_streaming=is_streaming)
+
+    with RequestTimer() as timer:
+        response = await route_request(model_name=model_name, request_body=body, endpoint_path="messages", is_streaming=is_streaming)
+
+    status_code = response.status_code if hasattr(response, "status_code") else 200
+    tokens = (0, 0, 0)
+    if hasattr(response, "body"):
+        import json as _json
+        try:
+            tokens = extract_token_usage(_json.loads(response.body))
+        except Exception:
+            pass
+
+    await log_usage(UsageRecord(
+        api_key_id=key_info["key_id"],
+        model_name=model_name,
+        provider_name=None,
+        endpoint="messages",
+        status_code=status_code,
+        latency_ms=timer.elapsed_ms,
+        prompt_tokens=tokens[0],
+        completion_tokens=tokens[1],
+        total_tokens=tokens[2],
+    ))
+
+    return response
 
 
 @router.post("/v1/responses", summary="OpenAI Responses",
@@ -152,6 +207,7 @@ async def openai_responses(
     body_schema: ResponsesRequest = Body(...),
     key_info: dict = Depends(validate_api_key),
 ):
+    await check_rate_limit(request, key_info)
     body = await request.json()
     model_name = body.get("model")
 
@@ -166,7 +222,32 @@ async def openai_responses(
         return denied
 
     is_streaming = body.get("stream", False)
-    return await route_request(model_name=model_name, request_body=body, endpoint_path="responses", is_streaming=is_streaming)
+
+    with RequestTimer() as timer:
+        response = await route_request(model_name=model_name, request_body=body, endpoint_path="responses", is_streaming=is_streaming)
+
+    status_code = response.status_code if hasattr(response, "status_code") else 200
+    tokens = (0, 0, 0)
+    if hasattr(response, "body"):
+        import json as _json
+        try:
+            tokens = extract_token_usage(_json.loads(response.body))
+        except Exception:
+            pass
+
+    await log_usage(UsageRecord(
+        api_key_id=key_info["key_id"],
+        model_name=model_name,
+        provider_name=None,
+        endpoint="responses",
+        status_code=status_code,
+        latency_ms=timer.elapsed_ms,
+        prompt_tokens=tokens[0],
+        completion_tokens=tokens[1],
+        total_tokens=tokens[2],
+    ))
+
+    return response
 
 
 @router.get("/v1/models", summary="List Models", response_model=ModelListResponse,
@@ -175,23 +256,20 @@ async def list_models(key_info: dict = Depends(validate_api_key)):
     import time
 
     db = await get_db()
-    try:
-        cursor = await db.execute("SELECT id, name FROM models ORDER BY name")
-        rows = await cursor.fetchall()
+    cursor = await db.execute("SELECT id, name FROM models ORDER BY name")
+    rows = await cursor.fetchall()
 
-        allowed = key_info.get("allowed_models")
-        models = []
-        for row in rows:
-            if allowed is not None and row["name"] not in allowed:
-                continue
-            models.append({
-                "id": row["name"],
-                "object": "model",
-                "created": int(time.time()),
-                "owned_by": "router",
-                "supported_endpoint_types": ["openai", "anthropic", "responses"],
-            })
+    allowed = key_info.get("allowed_models")
+    models = []
+    for row in rows:
+        if allowed is not None and row["name"] not in allowed:
+            continue
+        models.append({
+            "id": row["name"],
+            "object": "model",
+            "created": int(time.time()),
+            "owned_by": "router",
+            "supported_endpoint_types": ["openai", "anthropic", "responses"],
+        })
 
-        return {"object": "list", "data": models}
-    finally:
-        await db.close()
+    return {"object": "list", "data": models}

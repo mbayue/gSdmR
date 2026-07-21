@@ -35,37 +35,31 @@ def _extract_key_from_headers(headers) -> str | None:
 async def _get_key_info(key: str) -> dict | None:
     """Get API key info from database. Returns dict with id, is_active or None."""
     db = await get_db()
-    try:
-        cursor = await db.execute(
-            "SELECT id, is_active FROM api_keys WHERE key_value = ?",
-            (key,),
-        )
-        row = await cursor.fetchone()
-        if row is None:
-            return None
-        return {"id": row["id"], "is_active": bool(row["is_active"])}
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        "SELECT id, is_active FROM api_keys WHERE key_value = ?",
+        (key,),
+    )
+    row = await cursor.fetchone()
+    if row is None:
+        return None
+    return {"id": row["id"], "is_active": bool(row["is_active"])}
 
 
 async def _get_allowed_model_names(api_key_id: int) -> list[str] | None:
     """Get allowed model names for a key. Returns None if no restrictions (all allowed)."""
     db = await get_db()
-    try:
-        cursor = await db.execute(
-            """
-            SELECT m.name FROM api_key_models akm
-            JOIN models m ON m.id = akm.model_id
-            WHERE akm.api_key_id = ?
-            """,
-            (api_key_id,),
-        )
-        rows = await cursor.fetchall()
-        if not rows:
-            return None  # No restrictions = all models allowed
-        return [row["name"] for row in rows]
-    finally:
-        await db.close()
+    cursor = await db.execute(
+        """
+        SELECT m.name FROM api_key_models akm
+        JOIN models m ON m.id = akm.model_id
+        WHERE akm.api_key_id = ?
+        """,
+        (api_key_id,),
+    )
+    rows = await cursor.fetchall()
+    if not rows:
+        return None  # No restrictions = all models allowed
+    return [row["name"] for row in rows]
 
 
 async def validate_api_key(request: Request) -> dict:
