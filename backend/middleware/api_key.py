@@ -33,16 +33,16 @@ def _extract_key_from_headers(headers) -> str | None:
 
 
 async def _get_key_info(key: str) -> dict | None:
-    """Get API key info from database. Returns dict with id, is_active or None."""
+    """Get API key info from database. Returns dict with id, is_active, rate_limit or None."""
     db = await get_db()
     cursor = await db.execute(
-        "SELECT id, is_active FROM api_keys WHERE key_value = ?",
+        "SELECT id, is_active, rate_limit FROM api_keys WHERE key_value = ?",
         (key,),
     )
     row = await cursor.fetchone()
     if row is None:
         return None
-    return {"id": row["id"], "is_active": bool(row["is_active"])}
+    return {"id": row["id"], "is_active": bool(row["is_active"]), "rate_limit": row["rate_limit"]}
 
 
 async def _get_allowed_model_names(api_key_id: int) -> list[str] | None:
@@ -81,4 +81,4 @@ async def validate_api_key(request: Request) -> dict:
 
     allowed_models = await _get_allowed_model_names(key_info["id"])
 
-    return {"key_id": key_info["id"], "allowed_models": allowed_models}
+    return {"key_id": key_info["id"], "allowed_models": allowed_models, "rate_limit": key_info["rate_limit"]}

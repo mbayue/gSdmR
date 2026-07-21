@@ -38,9 +38,19 @@ async def _get_model_providers(db, model_id: int) -> list[dict]:
 async def _build_model_response(db, model_row) -> ModelResponse:
     """Build a ModelResponse from a model row with its provider mappings."""
     providers = await _get_model_providers(db, model_row["id"])
+    # Get aliases
+    cursor = await db.execute(
+        "SELECT alias FROM model_aliases WHERE model_id = ? ORDER BY alias",
+        (model_row["id"],),
+    )
+    alias_rows = await cursor.fetchall()
+    aliases = [r["alias"] for r in alias_rows]
+
     return ModelResponse(
         id=model_row["id"],
         name=model_row["name"],
+        load_balance=model_row["load_balance"],
+        aliases=aliases,
         providers=providers,
         created_at=datetime.fromisoformat(model_row["created_at"]),
         updated_at=datetime.fromisoformat(model_row["updated_at"]),
@@ -94,8 +104,8 @@ async def create_model(
     await _validate_providers(db, body.providers)
 
     cursor = await db.execute(
-        "INSERT INTO models (name) VALUES (?)",
-        (body.name,),
+        "INSERT INTO models (name, load_balance) VALUES (?, ?)",
+        (body.name, body.load_balance),
     )
     model_id = cursor.lastrowid
 
@@ -107,6 +117,15 @@ async def create_model(
             """,
             (model_id, mapping.provider_id, mapping.provider_model, mapping.priority),
         )
+
+    # Insert aliases
+    for alias in body.aliases:
+        alias = alias.strip()
+        if alias and alias != body.name:
+            await db.execute(
+                "INSERT OR IGNORE INTO model_aliases (alias, model_id) VALUES (?, ?)",
+                (alias, model_id),
+            )
 
     await db.commit()
 
@@ -150,6 +169,13 @@ async def update_model(
         )
         has_updates = True
 
+    if body.load_balance is not None:
+        await db.execute(
+            "UPDATE models SET load_balance = ?, updated_at = datetime('now') WHERE id = ?",
+            (body.load_balance, model_id),
+        )
+        has_updates = True
+
     if body.providers is not None:
         if len(body.providers) == 0:
             raise HTTPException(
@@ -169,6 +195,18 @@ async def update_model(
                 """,
                 (model_id, mapping.provider_id, mapping.provider_model, mapping.priority),
             )
+        has_updates = True
+
+    if body.aliases is not None:
+        # Replace aliases
+        await db.execute("DELETE FROM model_aliases WHERE model_id = ?", (model_id,))
+        for alias in body.aliases:
+            alias = alias.strip()
+            if alias:
+                await db.execute(
+                    "INSERT OR IGNORE INTO model_aliases (alias, model_id) VALUES (?, ?)",
+                    (alias, model_id),
+                )
         has_updates = True
 
     if has_updates:

@@ -31,6 +31,7 @@ export interface ModelProviderMapping {
 export interface Model {
   id: number;
   name: string;
+  load_balance: 'priority' | 'round-robin' | 'weighted-random';
   providers: ModelProviderMapping[];
   created_at: string;
   updated_at: string;
@@ -39,11 +40,13 @@ export interface Model {
 export interface ModelCreate {
   name: string;
   providers: ModelProviderMapping[];
+  load_balance?: 'priority' | 'round-robin' | 'weighted-random';
 }
 
 export interface ModelUpdate {
   name?: string;
   providers?: ModelProviderMapping[];
+  load_balance?: 'priority' | 'round-robin' | 'weighted-random';
 }
 
 export interface LoginRequest {

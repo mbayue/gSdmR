@@ -71,6 +71,7 @@ export default function ModelsPage() {
           <TableHeader>
             <TableRow>
               <TableHead>Model Name</TableHead>
+              <TableHead>Mode</TableHead>
               <TableHead>Provider Routes</TableHead>
               <TableHead className="w-[100px]">Actions</TableHead>
             </TableRow>
@@ -79,6 +80,9 @@ export default function ModelsPage() {
             {models.map((m) => (
               <TableRow key={m.id}>
                 <TableCell className="font-mono font-medium">{m.name}</TableCell>
+                <TableCell>
+                  <Badge variant="outline" className="text-xs">{m.load_balance}</Badge>
+                </TableCell>
                 <TableCell>
                   <div className="flex flex-wrap gap-1.5">
                     {m.providers.map((p, i) => (
@@ -102,7 +106,7 @@ export default function ModelsPage() {
             ))}
             {models.length === 0 && (
               <TableRow>
-                <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
+                <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
                   No models configured yet. Add a model to start routing.
                 </TableCell>
               </TableRow>

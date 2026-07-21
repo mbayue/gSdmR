@@ -9,6 +9,7 @@ import LoginPage from './pages/LoginPage';
 import ProvidersPage from './pages/ProvidersPage';
 import ModelsPage from './pages/ModelsPage';
 import ApiKeysPage from './pages/ApiKeysPage';
+import UsagePage from './pages/UsagePage';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
               <Route index element={<ProvidersPage />} />
               <Route path="models" element={<ModelsPage />} />
               <Route path="keys" element={<ApiKeysPage />} />
+              <Route path="usage" element={<UsagePage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

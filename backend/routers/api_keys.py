@@ -16,12 +16,14 @@ router = APIRouter(prefix="/api/keys", tags=["api-keys"])
 class ApiKeyCreate(BaseModel):
     name: str = Field(..., min_length=1)
     model_ids: List[int] = []  # empty = all models allowed
+    rate_limit: int = Field(60, ge=1, le=10000)  # requests per minute
 
 
 class ApiKeyUpdate(BaseModel):
     name: Optional[str] = Field(None, min_length=1)
     is_active: Optional[bool] = None
     model_ids: Optional[List[int]] = None
+    rate_limit: Optional[int] = Field(None, ge=1, le=10000)
 
 
 class ApiKeyResponse(BaseModel):
@@ -64,6 +66,7 @@ async def _build_key_response(db, row) -> dict:
         "name": row["name"],
         "key_preview": preview,
         "is_active": bool(row["is_active"]),
+        "rate_limit": row["rate_limit"],
         "allowed_models": allowed_models,
         "created_at": row["created_at"],
     }
@@ -87,8 +90,8 @@ async def create_api_key(
     key_value = generate_api_key()
 
     cursor = await db.execute(
-        "INSERT INTO api_keys (key_value, name) VALUES (?, ?)",
-        (key_value, body.name),
+        "INSERT INTO api_keys (key_value, name, rate_limit) VALUES (?, ?, ?)",
+        (key_value, body.name, body.rate_limit),
     )
     key_id = cursor.lastrowid
 
@@ -115,6 +118,7 @@ async def create_api_key(
         "name": row["name"],
         "key_value": key_value,  # full key shown once
         "is_active": True,
+        "rate_limit": row["rate_limit"],
         "allowed_models": allowed_models,
         "created_at": row["created_at"],
     }
@@ -136,6 +140,9 @@ async def update_api_key(
 
     if body.is_active is not None:
         await db.execute("UPDATE api_keys SET is_active = ? WHERE id = ?", (int(body.is_active), key_id))
+
+    if body.rate_limit is not None:
+        await db.execute("UPDATE api_keys SET rate_limit = ? WHERE id = ?", (body.rate_limit, key_id))
 
     if body.model_ids is not None:
         # Replace model restrictions

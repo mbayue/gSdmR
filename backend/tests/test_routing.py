@@ -106,32 +106,33 @@ class TestGetProvidersForModel:
 
     async def test_returns_providers_ordered_by_priority(self, setup_db):
         """Returns providers for existing model ordered by priority ASC."""
-        providers = await get_providers_for_model("gpt-4")
+        providers, mode = await get_providers_for_model("gpt-4")
         assert len(providers) == 2  # excludes inactive
         assert providers[0]["name"] == "bluesminds"
         assert providers[0]["provider_model"] == "gpt-4-turbo"
         assert providers[1]["name"] == "freemodel"
         assert providers[1]["provider_model"] == "gpt-4-free"
+        assert mode == "priority"
 
     async def test_nonexistent_model_returns_empty(self, setup_db):
         """Non-existent model returns empty list."""
-        providers = await get_providers_for_model("nonexistent-model")
+        providers, mode = await get_providers_for_model("nonexistent-model")
         assert providers == []
 
     async def test_model_with_no_providers_returns_empty(self, setup_db):
         """Model with no provider mappings returns empty list."""
-        providers = await get_providers_for_model("no-providers")
+        providers, mode = await get_providers_for_model("no-providers")
         assert providers == []
 
     async def test_skips_inactive_providers(self, setup_db):
         """Inactive providers are excluded from results."""
-        providers = await get_providers_for_model("gpt-4")
+        providers, _ = await get_providers_for_model("gpt-4")
         provider_names = [p["name"] for p in providers]
         assert "inactive-provider" not in provider_names
 
     async def test_provider_dict_has_required_keys(self, setup_db):
         """Each provider dict has id, name, base_url, api_key, provider_model."""
-        providers = await get_providers_for_model("gpt-4")
+        providers, _ = await get_providers_for_model("gpt-4")
         for p in providers:
             assert "id" in p
             assert "name" in p

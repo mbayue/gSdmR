@@ -12,10 +12,13 @@ async def lifespan(app: FastAPI):
     """Application lifespan: initialize database on startup, close on shutdown."""
     from database import init_db, close_db
     from services.logging import setup_logging
+    from services.health import start_health_checks, stop_health_checks
 
     setup_logging()
     await init_db()
+    start_health_checks()
     yield
+    stop_health_checks()
     await close_db()
 
 

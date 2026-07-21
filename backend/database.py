@@ -31,8 +31,16 @@ CREATE TABLE IF NOT EXISTS providers (
 CREATE TABLE IF NOT EXISTS models (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
+    load_balance TEXT NOT NULL DEFAULT 'priority',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS model_aliases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    alias TEXT NOT NULL UNIQUE,
+    model_id INTEGER NOT NULL,
+    FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS model_providers (
@@ -59,6 +67,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
     key_value TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
+    rate_limit INTEGER NOT NULL DEFAULT 60,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

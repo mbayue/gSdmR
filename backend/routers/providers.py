@@ -170,3 +170,10 @@ async def list_provider_models(
                 return {"error": f"Provider returned {response.status_code}", "models": []}
     except httpx.RequestError as e:
         return {"error": f"Could not reach provider: {str(e)}", "models": []}
+
+
+@router.get("/health-status")
+async def get_provider_health(username: str = Depends(get_current_user)):
+    """Get health check status for all providers."""
+    from services.health import get_health_status
+    return get_health_status()

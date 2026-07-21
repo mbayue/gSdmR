@@ -21,6 +21,7 @@ interface AvailableModel {
 
 export default function ModelForm({ model, onClose }: Props) {
   const [name, setName] = useState(model?.name ?? '');
+  const [loadBalance, setLoadBalance] = useState<string>(model?.load_balance ?? 'priority');
   const [mappings, setMappings] = useState<ModelProviderMapping[]>(
     model?.providers ?? [{ provider_id: 0, provider_model: '', priority: 1 }]
   );
@@ -97,6 +98,7 @@ export default function ModelForm({ model, onClose }: Props) {
 
     const payload = {
       name,
+      load_balance: loadBalance as 'priority' | 'round-robin' | 'weighted-random',
       providers: validMappings.map((m) => ({
         provider_id: m.provider_id,
         provider_model: m.provider_model,
@@ -134,6 +136,20 @@ export default function ModelForm({ model, onClose }: Props) {
           required
           placeholder="e.g., my-gpt4, fast-claude"
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Load Balancing</Label>
+        <Select value={loadBalance} onValueChange={setLoadBalance}>
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="priority">Priority (try highest first, fallback in order)</SelectItem>
+            <SelectItem value="round-robin">Round Robin (rotate across providers)</SelectItem>
+            <SelectItem value="weighted-random">Weighted Random (random based on priority weights)</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="space-y-3">
