@@ -10,6 +10,7 @@ import ProvidersPage from './pages/ProvidersPage';
 import ModelsPage from './pages/ModelsPage';
 import ApiKeysPage from './pages/ApiKeysPage';
 import UsagePage from './pages/UsagePage';
+import StatusPage from './pages/StatusPage';
 
 function App() {
   return (
@@ -18,6 +19,7 @@ function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/status" element={<StatusPage />} />
             <Route
               element={
                 <ProtectedRoute>

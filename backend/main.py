@@ -116,8 +116,10 @@ from routers.proxy import router as proxy_router
 from routers.api_keys import router as api_keys_router
 from routers.backup import router as backup_router
 from routers.usage import router as usage_router
+from routers.status import router as status_router
 
 app.include_router(proxy_router)
+app.include_router(status_router)
 app.include_router(auth_router, include_in_schema=False)
 app.include_router(providers_router, include_in_schema=False)
 app.include_router(models_router, include_in_schema=False)
