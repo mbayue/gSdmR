@@ -15,8 +15,12 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     """Adds security and observability headers to every response."""
 
     async def dispatch(self, request: Request, call_next) -> Response:
-        # Generate unique request ID
-        request_id = request.headers.get("X-Request-ID") or str(uuid.uuid4())
+        # Generate unique request ID (validate client-provided or generate new)
+        client_id = request.headers.get("X-Request-ID")
+        if client_id and len(client_id) <= 64 and client_id.replace("-", "").isalnum():
+            request_id = client_id
+        else:
+            request_id = str(uuid.uuid4())
         request.state.request_id = request_id
 
         # Track timing

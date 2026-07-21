@@ -107,7 +107,7 @@ async def openai_chat_completions(
     key_info: dict = Depends(validate_api_key),
 ):
     await check_rate_limit(request, key_info)
-    body = await request.json()
+    body = body_schema.model_dump(exclude_none=True)
     model_name = body.get("model")
 
     if not model_name:
@@ -158,7 +158,7 @@ async def anthropic_messages(
     key_info: dict = Depends(validate_api_key),
 ):
     await check_rate_limit(request, key_info)
-    body = await request.json()
+    body = body_schema.model_dump(exclude_none=True)
     model_name = body.get("model")
 
     if not model_name:
@@ -208,7 +208,7 @@ async def openai_responses(
     key_info: dict = Depends(validate_api_key),
 ):
     await check_rate_limit(request, key_info)
-    body = await request.json()
+    body = body_schema.model_dump(exclude_none=True)
     model_name = body.get("model")
 
     if not model_name:

@@ -1,12 +1,16 @@
-"""Authentication services: password hashing, JWT creation/verification."""
+"""Authentication services: password hashing, JWT creation/verification with blocklist."""
 
 from datetime import datetime, timedelta, timezone
+from typing import Set
 
 import bcrypt
 import jwt
 from fastapi import HTTPException, Request
 
 from config import JWT_SECRET, JWT_ALGORITHM, JWT_EXPIRATION_HOURS
+
+# In-memory token blocklist (tokens that have been revoked via logout)
+_token_blocklist: Set[str] = set()
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
@@ -25,8 +29,21 @@ def create_access_token(username: str) -> str:
     return jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
 
+def revoke_token(token: str) -> None:
+    """Add a token to the blocklist (called on logout)."""
+    _token_blocklist.add(token)
+
+
+def is_token_revoked(token: str) -> bool:
+    """Check if a token has been revoked."""
+    return token in _token_blocklist
+
+
 def verify_token(token: str) -> str:
     """Verify a JWT and return the username. Raises HTTPException(401) on failure."""
+    if is_token_revoked(token):
+        raise HTTPException(status_code=401, detail="Token has been revoked")
+
     try:
         payload = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
         username: str = payload.get("sub")

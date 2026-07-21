@@ -56,7 +56,6 @@ RUN chmod +x /app/start.sh
 
 # Environment defaults
 ENV DB_PATH=/app/data/router.db
-ENV JWT_SECRET=change-this-in-production
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONDONTWRITEBYTECODE=1
 

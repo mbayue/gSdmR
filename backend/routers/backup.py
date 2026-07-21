@@ -1,6 +1,6 @@
 """Export/Import endpoints for providers, models, and API keys."""
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Query
 from fastapi.responses import JSONResponse
 
 from database import get_db
@@ -10,11 +10,24 @@ router = APIRouter(prefix="/api/backup", tags=["backup"])
 
 
 @router.get("/export")
-async def export_all(username: str = Depends(get_current_user)):
+async def export_all(username: str = Depends(get_current_user), password: str = Query(..., description="Re-enter admin password to confirm")):
     """Export all providers, models (with mappings), and API keys as JSON.
 
+    Requires password re-confirmation since it exposes sensitive API keys.
     Use this to back up configuration or migrate to another instance.
     """
+    # Re-verify password
+    db = await get_db()
+    cursor = await db.execute(
+        "SELECT password_hash FROM users WHERE username = ?", (username,)
+    )
+    user = await cursor.fetchone()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+
+    from services.auth import verify_password
+    if not verify_password(password, user["password_hash"]):
+        raise HTTPException(status_code=403, detail="Invalid password confirmation")
     db = await get_db()
     # Export providers
     cursor = await db.execute("SELECT id, name, base_url, api_key, is_active FROM providers ORDER BY id")
@@ -99,7 +112,11 @@ async def import_all(username: str = Depends(get_current_user), file: UploadFile
     """
     import json
 
-    content = await file.read()
+    MAX_IMPORT_SIZE = 5 * 1024 * 1024  # 5MB
+    content = await file.read(MAX_IMPORT_SIZE + 1)
+    if len(content) > MAX_IMPORT_SIZE:
+        raise HTTPException(status_code=413, detail="Import file too large (max 5MB)")
+
     try:
         data = json.loads(content)
     except json.JSONDecodeError:

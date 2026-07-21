@@ -75,11 +75,11 @@ def custom_openapi():
 
 app.openapi = custom_openapi
 
-# CORS middleware — allow all origins for development
+# CORS middleware — allow all origins for development (no credentials needed with Bearer tokens)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -87,6 +87,26 @@ app.add_middleware(
 # Security headers middleware
 from middleware.security import SecurityHeadersMiddleware
 app.add_middleware(SecurityHeadersMiddleware)
+
+# Request body size limit (10MB)
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request as StarletteRequest
+from starlette.responses import Response as StarletteResponse
+
+class MaxBodySizeMiddleware(BaseHTTPMiddleware):
+    MAX_BODY_SIZE = 10 * 1024 * 1024  # 10MB
+
+    async def dispatch(self, request: StarletteRequest, call_next) -> StarletteResponse:
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > self.MAX_BODY_SIZE:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=413,
+                content={"error": {"message": "Request body too large (max 10MB)", "type": "invalid_request_error", "code": 413}},
+            )
+        return await call_next(request)
+
+app.add_middleware(MaxBodySizeMiddleware)
 
 
 from routers.auth import router as auth_router

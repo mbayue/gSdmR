@@ -65,6 +65,7 @@ async def run_health_checks() -> None:
     for row in providers:
         provider_id = row["id"]
         is_active = bool(row["is_active"])
+        auto_disabled = bool(row["auto_disabled"]) if "auto_disabled" in row.keys() else False
 
         # Initialize health state if new
         if provider_id not in _health_state:
@@ -76,6 +77,9 @@ async def run_health_checks() -> None:
 
         # Skip recently checked
         if is_active and (now - state.last_check) < CHECK_INTERVAL_SECONDS:
+            continue
+        # Only re-check disabled providers that were auto-disabled
+        if not is_active and not auto_disabled:
             continue
         if not is_active and (now - state.last_check) < RECOVERY_CHECK_INTERVAL:
             continue
@@ -92,10 +96,10 @@ async def run_health_checks() -> None:
             state.consecutive_failures = 0
             state.last_status = "healthy"
 
-            # Re-enable if it was disabled by health checks
-            if not is_active:
+            # Re-enable if it was auto-disabled by health checks
+            if not is_active and auto_disabled:
                 await db.execute(
-                    "UPDATE providers SET is_active = 1, updated_at = datetime('now') WHERE id = ?",
+                    "UPDATE providers SET is_active = 1, auto_disabled = 0, updated_at = datetime('now') WHERE id = ?",
                     (provider_id,),
                 )
                 await db.commit()
@@ -113,7 +117,7 @@ async def run_health_checks() -> None:
             # Auto-disable on threshold
             if is_active and state.consecutive_failures >= FAILURE_THRESHOLD:
                 await db.execute(
-                    "UPDATE providers SET is_active = 0, updated_at = datetime('now') WHERE id = ?",
+                    "UPDATE providers SET is_active = 0, auto_disabled = 1, updated_at = datetime('now') WHERE id = ?",
                     (provider_id,),
                 )
                 await db.commit()

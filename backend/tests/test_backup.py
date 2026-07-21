@@ -121,7 +121,7 @@ class TestExport:
 
     async def test_export_returns_valid_structure(self, client, auth_headers):
         """Export returns JSON with version, providers, models, api_keys."""
-        response = await client.get("/api/backup/export", headers=auth_headers)
+        response = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
         assert data["version"] == "1.0"
@@ -136,7 +136,7 @@ class TestExport:
         self, client, auth_headers
     ):
         """Export includes full (not masked) provider API keys."""
-        response = await client.get("/api/backup/export", headers=auth_headers)
+        response = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         data = response.json()
         # Check that at least one provider has a full api_key (not masked)
         for provider in data["providers"]:
@@ -148,7 +148,7 @@ class TestExport:
         self, client, auth_headers, db_with_models
     ):
         """Export includes model provider mappings with provider_model."""
-        response = await client.get("/api/backup/export", headers=auth_headers)
+        response = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         data = response.json()
         gpt4 = next((m for m in data["models"] if m["name"] == "gpt-4"), None)
         assert gpt4 is not None
@@ -163,7 +163,7 @@ class TestExport:
         self, client, auth_headers, db_with_models
     ):
         """Export includes api key model restrictions."""
-        response = await client.get("/api/backup/export", headers=auth_headers)
+        response = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         data = response.json()
         test_key = next(
             (k for k in data["api_keys"] if k["name"] == "export-test-key"), None
@@ -173,7 +173,7 @@ class TestExport:
 
     async def test_export_requires_auth(self, client):
         """GET /api/backup/export without auth returns 401."""
-        response = await client.get("/api/backup/export")
+        response = await client.get("/api/backup/export?password=admin")
         assert response.status_code == 401
 
 
@@ -205,7 +205,7 @@ class TestImport:
         assert data["imported"]["providers"] == 1
 
         # Verify provider was created
-        export_resp = await client.get("/api/backup/export", headers=auth_headers)
+        export_resp = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         provider_names = [p["name"] for p in export_resp.json()["providers"]]
         assert "new-import-provider" in provider_names
 
@@ -231,7 +231,7 @@ class TestImport:
         assert response.status_code == 200
 
         # Verify provider was updated
-        export_resp = await client.get("/api/backup/export", headers=auth_headers)
+        export_resp = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         bluesminds = next(
             p for p in export_resp.json()["providers"] if p["name"] == "bluesminds"
         )
@@ -265,7 +265,7 @@ class TestImport:
         assert response.json()["imported"]["models"] == 1
 
         # Verify model with mappings
-        export_resp = await client.get("/api/backup/export", headers=auth_headers)
+        export_resp = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         model = next(
             (m for m in export_resp.json()["models"] if m["name"] == "imported-model"),
             None,
@@ -300,7 +300,7 @@ class TestImport:
         assert response.json()["imported"]["api_keys"] == 1
 
         # Verify key with restrictions
-        export_resp = await client.get("/api/backup/export", headers=auth_headers)
+        export_resp = await client.get("/api/backup/export?password=admin", headers=auth_headers)
         imp_key = next(
             (k for k in export_resp.json()["api_keys"] if k["name"] == "imported-key"),
             None,
@@ -331,3 +331,4 @@ class TestImport:
         files = {"file": ("backup.json", json.dumps(import_data).encode(), "application/json")}
         response = await client.post("/api/backup/import", files=files)
         assert response.status_code == 401
+

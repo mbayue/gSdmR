@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS providers (
     base_url TEXT NOT NULL,
     api_key TEXT NOT NULL,
     is_active INTEGER NOT NULL DEFAULT 1,
+    auto_disabled INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -100,12 +101,12 @@ CREATE INDEX IF NOT EXISTS idx_usage_logs_created_at ON usage_logs(created_at);
 CREATE INDEX IF NOT EXISTS idx_usage_logs_model ON usage_logs(model_name);
 """
 
-# Default providers to seed on first run
+# Default providers to seed on first run (API keys configured via dashboard)
 DEFAULT_PROVIDERS = [
-    {"name": "bluesminds", "base_url": "https://api.bluesminds.com/v1", "api_key": "sk-yLmkgOMpH4qdK1bnGHxN7oICTv9cYvCfu4PEX1fuvZvC4ABJ"},
-    {"name": "freemodel", "base_url": "https://api.freemodel.dev/v1", "api_key": "fe_oa_4562ef11a983fab9aecfa66cc93989b78a16ee25262f83e5"},
-    {"name": "forge-gateway", "base_url": "https://forge-gateway-api.fly.dev/v1", "api_key": "fg-20b6fff1454248cf934963c7b7b3ad81"},
-    {"name": "iamhc", "base_url": "https://api.iamhc.cn/v1", "api_key": "sk-ItRgKuQLekrGvntZiVRYtpiDsSCYTMKjORUHK7dy6NVaqcDg"},
+    {"name": "bluesminds", "base_url": "https://api.bluesminds.com/v1", "api_key": ""},
+    {"name": "freemodel", "base_url": "https://api.freemodel.dev/v1", "api_key": ""},
+    {"name": "forge-gateway", "base_url": "https://forge-gateway-api.fly.dev/v1", "api_key": ""},
+    {"name": "iamhc", "base_url": "https://api.iamhc.cn/v1", "api_key": ""},
 ]
 
 
@@ -158,6 +159,12 @@ async def init_db() -> None:
 
     try:
         await db.execute("ALTER TABLE api_keys ADD COLUMN rate_limit INTEGER NOT NULL DEFAULT 60")
+        await db.commit()
+    except Exception:
+        pass  # Column already exists
+
+    try:
+        await db.execute("ALTER TABLE providers ADD COLUMN auto_disabled INTEGER NOT NULL DEFAULT 0")
         await db.commit()
     except Exception:
         pass  # Column already exists

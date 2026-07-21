@@ -22,8 +22,8 @@ async def get_usage_stats(
     """
     db = await get_db()
     # Build WHERE clause
-    conditions = [f"created_at >= datetime('now', '-{days} days')"]
-    params: list = []
+    conditions = ["created_at >= datetime('now', ?)"]
+    params: list = [f"-{days} days"]
     if api_key_id:
         conditions.append("api_key_id = ?")
         params.append(api_key_id)

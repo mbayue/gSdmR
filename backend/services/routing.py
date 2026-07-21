@@ -1,5 +1,6 @@
 """Priority-based routing service with provider fallback and load balancing."""
 
+import asyncio
 import logging
 import random
 from typing import Any
@@ -12,6 +13,7 @@ logger = logging.getLogger(__name__)
 
 # Round-robin state (model_name -> last used index)
 _round_robin_index: dict[str, int] = {}
+_round_robin_lock = asyncio.Lock()
 
 
 async def get_providers_for_model(model_name: str) -> tuple[list[dict], str]:
@@ -73,23 +75,17 @@ async def get_providers_for_model(model_name: str) -> tuple[list[dict], str]:
     return providers, load_balance
 
 
-def _order_providers(providers: list[dict], mode: str, model_name: str) -> list[dict]:
-    """Order providers based on load balancing mode.
-
-    - priority: use as-is (already sorted by priority ASC)
-    - round-robin: rotate starting provider each request
-    - weighted-random: random selection weighted by inverse priority
-    """
+async def _order_providers(providers: list[dict], mode: str, model_name: str) -> list[dict]:
+    """Order providers based on load balancing mode."""
     if not providers or len(providers) <= 1:
         return providers
 
     if mode == "round-robin":
-        global _round_robin_index
-        idx = _round_robin_index.get(model_name, -1) + 1
-        if idx >= len(providers):
-            idx = 0
-        _round_robin_index[model_name] = idx
-        # Rotate list so idx is first, rest follow in order
+        async with _round_robin_lock:
+            idx = _round_robin_index.get(model_name, -1) + 1
+            if idx >= len(providers):
+                idx = 0
+            _round_robin_index[model_name] = idx
         return providers[idx:] + providers[:idx]
 
     elif mode == "weighted-random":
@@ -155,7 +151,7 @@ async def route_request(
         )
 
     # Order providers based on load balancing mode
-    ordered = _order_providers(providers, load_balance, model_name)
+    ordered = await _order_providers(providers, load_balance, model_name)
 
     attempted: set[int] = set()
 

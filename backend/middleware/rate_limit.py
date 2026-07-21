@@ -1,13 +1,13 @@
 """Rate limiting middleware using in-memory sliding window per API key."""
 
 import time
-from collections import defaultdict
 from dataclasses import dataclass, field
 from fastapi import HTTPException, Request
 
 # Default: 60 requests per minute per key
 DEFAULT_RATE_LIMIT = 60
 DEFAULT_WINDOW_SECONDS = 60
+MAX_TRACKED_KEYS = 10000  # Evict oldest entries beyond this
 
 
 @dataclass
@@ -15,48 +15,30 @@ class SlidingWindow:
     """Sliding window counter for rate limiting."""
 
     requests: list[float] = field(default_factory=list)
+    last_access: float = 0.0
 
     def add_request(self, now: float, window: int) -> int:
         """Add a request timestamp and return current count within window."""
-        # Remove expired entries
         cutoff = now - window
         self.requests = [t for t in self.requests if t > cutoff]
         self.requests.append(now)
+        self.last_access = now
         return len(self.requests)
 
 
 # Global shared sliding windows (keyed by API key ID)
-_windows: dict[int, SlidingWindow] = defaultdict(SlidingWindow)
+_windows: dict[int, SlidingWindow] = {}
 
 
-class RateLimiter:
-    """In-memory sliding window rate limiter keyed by API key ID."""
-
-    def __init__(self, max_requests: int = DEFAULT_RATE_LIMIT, window_seconds: int = DEFAULT_WINDOW_SECONDS):
-        self.max_requests = max_requests
-        self.window_seconds = window_seconds
-
-    def check(self, key_id: int) -> tuple[bool, int, int]:
-        """Check if request is allowed.
-
-        Returns: (allowed, remaining, reset_seconds)
-        """
-        now = time.time()
-        window = _windows[key_id]
-        count = window.add_request(now, self.window_seconds)
-
-        if count > self.max_requests:
-            # Remove the request we just added (it's denied)
-            window.requests.pop()
-            remaining = 0
-            return False, remaining, self.window_seconds
-        else:
-            remaining = self.max_requests - count
-            return True, remaining, self.window_seconds
-
-
-# Global rate limiter instance (used as fallback)
-rate_limiter = RateLimiter()
+def _evict_stale_entries() -> None:
+    """Remove entries not accessed in 2x window to bound memory."""
+    if len(_windows) <= MAX_TRACKED_KEYS:
+        return
+    now = time.time()
+    stale_cutoff = now - (DEFAULT_WINDOW_SECONDS * 2)
+    stale_keys = [k for k, v in _windows.items() if v.last_access < stale_cutoff]
+    for k in stale_keys:
+        del _windows[k]
 
 
 async def check_rate_limit(request: Request, key_info: dict) -> None:
@@ -67,23 +49,34 @@ async def check_rate_limit(request: Request, key_info: dict) -> None:
     key_id = key_info["key_id"]
     max_requests = key_info.get("rate_limit", DEFAULT_RATE_LIMIT)
 
-    # Create a per-key limiter if needed with custom limit
-    limiter = RateLimiter(max_requests=max_requests, window_seconds=DEFAULT_WINDOW_SECONDS)
-    allowed, remaining, window = limiter.check(key_id)
+    # Get or create window for this key
+    if key_id not in _windows:
+        _windows[key_id] = SlidingWindow()
+        _evict_stale_entries()
 
-    # Store rate limit info for response headers
-    request.state.rate_limit_remaining = remaining
-    request.state.rate_limit_limit = max_requests
-    request.state.rate_limit_window = window
+    now = time.time()
+    window = _windows[key_id]
+    count = window.add_request(now, DEFAULT_WINDOW_SECONDS)
 
-    if not allowed:
+    if count > max_requests:
+        # Deny — remove the request we just added
+        window.requests.pop()
+        request.state.rate_limit_remaining = 0
+        request.state.rate_limit_limit = max_requests
+        request.state.rate_limit_window = DEFAULT_WINDOW_SECONDS
         raise HTTPException(
             status_code=429,
             detail="Rate limit exceeded. Please slow down.",
             headers={
                 "X-RateLimit-Limit": str(max_requests),
                 "X-RateLimit-Remaining": "0",
-                "X-RateLimit-Reset": str(window),
-                "Retry-After": str(window),
+                "X-RateLimit-Reset": str(DEFAULT_WINDOW_SECONDS),
+                "Retry-After": str(DEFAULT_WINDOW_SECONDS),
             },
         )
+
+    # Allow
+    remaining = max_requests - count
+    request.state.rate_limit_remaining = remaining
+    request.state.rate_limit_limit = max_requests
+    request.state.rate_limit_window = DEFAULT_WINDOW_SECONDS
