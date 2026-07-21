@@ -98,3 +98,63 @@ app.include_router(backup_router, include_in_schema=False)
 async def health_check():
     """Health check endpoint."""
     return {"status": "ok"}
+
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    """Return consistent error format for all HTTP errors."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": {
+                "message": exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+                "type": _error_type_for_status(exc.status_code),
+                "code": exc.status_code,
+            }
+        },
+    )
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Return consistent error format for validation errors."""
+    errors = exc.errors()
+    message = "; ".join(
+        f"{'.'.join(str(l) for l in e.get('loc', []))}: {e.get('msg', '')}"
+        for e in errors
+    )
+    return JSONResponse(
+        status_code=422,
+        content={
+            "error": {
+                "message": message,
+                "type": "invalid_request_error",
+                "code": 422,
+            }
+        },
+    )
+
+
+def _error_type_for_status(status_code: int) -> str:
+    """Map HTTP status code to error type string."""
+    if status_code == 401:
+        return "authentication_error"
+    if status_code == 403:
+        return "permission_denied"
+    if status_code == 404:
+        return "not_found"
+    if status_code == 409:
+        return "conflict"
+    if status_code == 422 or status_code == 400:
+        return "invalid_request_error"
+    if status_code == 429:
+        return "rate_limit_error"
+    if status_code >= 500:
+        return "server_error"
+    return "error"

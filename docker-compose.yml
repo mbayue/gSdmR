@@ -1,0 +1,24 @@
+services:
+  backend:
+    build: ./backend
+    container_name: gsdm-r-backend
+    env_file: ./backend/.env
+    volumes:
+      - db-data:/app/data
+    environment:
+      - DB_PATH=/app/data/router.db
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: gsdm-r-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  db-data:

@@ -20,58 +20,55 @@ router = APIRouter(tags=["proxy"])
 # --- Request/Response schemas for OpenAPI docs ---
 
 class ChatMessage(BaseModel):
-    role: str = Field(..., example="user")
-    content: str = Field(..., example="Hello!")
+    role: str = Field(..., json_schema_extra={"example": "user"})
+    content: str = Field(..., json_schema_extra={"example": "Hello!"})
 
 class ChatCompletionRequest(BaseModel):
-    model: str = Field(..., example="gpt")
+    model_config = {"extra": "allow"}
+
+    model: str = Field(..., json_schema_extra={"example": "gpt"})
     messages: List[ChatMessage] = Field(..., min_length=1)
-    temperature: Optional[float] = Field(None, example=0.7)
-    max_tokens: Optional[int] = Field(None, example=1024)
+    temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.7})
+    max_tokens: Optional[int] = Field(None, json_schema_extra={"example": 1024})
     stream: Optional[bool] = Field(False)
     top_p: Optional[float] = None
     frequency_penalty: Optional[float] = None
     presence_penalty: Optional[float] = None
 
-    class Config:
-        extra = "allow"
-
 class AnthropicMessage(BaseModel):
-    role: str = Field(..., example="user")
-    content: str = Field(..., example="Hello!")
+    role: str = Field(..., json_schema_extra={"example": "user"})
+    content: str = Field(..., json_schema_extra={"example": "Hello!"})
 
 class AnthropicRequest(BaseModel):
-    model: str = Field(..., example="gpt")
+    model_config = {"extra": "allow"}
+
+    model: str = Field(..., json_schema_extra={"example": "gpt"})
     messages: List[AnthropicMessage] = Field(..., min_length=1)
-    max_tokens: Optional[int] = Field(1024, example=1024)
-    temperature: Optional[float] = Field(None, example=0.7)
+    max_tokens: Optional[int] = Field(1024, json_schema_extra={"example": 1024})
+    temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.7})
     stream: Optional[bool] = Field(False)
     system: Optional[str] = None
     top_p: Optional[float] = None
 
-    class Config:
-        extra = "allow"
-
 class ResponsesRequest(BaseModel):
-    model: str = Field(..., example="gpt")
-    input: Any = Field(..., example="Hello!")
-    temperature: Optional[float] = Field(None, example=0.7)
-    max_output_tokens: Optional[int] = Field(None, example=1024)
+    model_config = {"extra": "allow"}
+
+    model: str = Field(..., json_schema_extra={"example": "gpt"})
+    input: Any = Field(..., json_schema_extra={"example": "Hello!"})
+    temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.7})
+    max_output_tokens: Optional[int] = Field(None, json_schema_extra={"example": 1024})
     stream: Optional[bool] = Field(False)
     instructions: Optional[str] = None
     top_p: Optional[float] = None
     tools: Optional[List[Any]] = None
     tool_choice: Optional[Any] = None
 
-    class Config:
-        extra = "allow"
-
 class ModelInfo(BaseModel):
-    id: str = Field(..., example="gpt")
+    id: str = Field(..., json_schema_extra={"example": "gpt"})
     object: str = Field("model")
-    created: int = Field(..., example=1784641000)
+    created: int = Field(..., json_schema_extra={"example": 1784641000})
     owned_by: str = Field("router")
-    supported_endpoint_types: List[str] = Field(..., example=["openai", "anthropic", "responses"])
+    supported_endpoint_types: List[str] = Field(..., json_schema_extra={"example": ["openai", "anthropic", "responses"]})
 
 class ModelListResponse(BaseModel):
     object: str = Field("list")

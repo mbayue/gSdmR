@@ -105,8 +105,26 @@ async def route_request(
         status_code = result.get("status_code") if isinstance(result, dict) else None
 
         if status_code and 400 <= status_code < 500 and status_code != 429:
-            response_body = result.get("body", {"error": {"message": "Client error"}})
-            return JSONResponse(status_code=status_code, content=response_body)
+            # Wrap provider error in our consistent format
+            provider_body = result.get("body", {})
+            # Try to extract message from provider's error format
+            if isinstance(provider_body, dict) and "error" in provider_body:
+                msg = provider_body["error"].get("message", "Provider returned an error")
+            elif isinstance(provider_body, dict) and "message" in provider_body:
+                msg = provider_body["message"]
+            else:
+                msg = str(provider_body) if provider_body else "Provider returned an error"
+
+            return JSONResponse(
+                status_code=status_code,
+                content={
+                    "error": {
+                        "message": msg,
+                        "type": "provider_error",
+                        "code": status_code,
+                    }
+                },
+            )
 
         log_failure(provider["name"], error_type, model_name)
 
