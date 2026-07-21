@@ -1,19 +1,19 @@
-"""Shared test configuration — ensures DB connections are cleaned up."""
+"""Shared test configuration — ensures clean process exit after tests."""
 
-import asyncio
+import os
 import pytest
 
 
 @pytest.fixture(autouse=True)
 def reset_db_singleton():
-    """Reset the database singleton before each test to prevent connection leaks."""
+    """Reset the database singleton before each test."""
     import database
     database._db = None
     yield
-    # Force close any remaining connection
-    if database._db is not None:
-        try:
-            asyncio.get_event_loop().run_until_complete(database._db.close())
-        except Exception:
-            pass
-        database._db = None
+    database._db = None
+
+
+@pytest.hookimpl(trylast=True)
+def pytest_unconfigure(config):
+    """Force-kill the process after all tests to avoid aiosqlite thread hang."""
+    os._exit(0)

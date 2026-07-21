@@ -1,0 +1,58 @@
+........................................................................ [ 33%]
+........................................................................ [ 66%]
+........................................................................ [ 99%]
+..                                                                       [100%]
+=============================== tests coverage ================================
+______________ coverage: platform win32, python 3.11.15-final-0 _______________
+
+Name                                       Stmts   Miss  Cover   Missing
+------------------------------------------------------------------------
+backend\config.py                             26      8    69%   21-24, 32-35
+backend\database.py                           50      8    84%   136-138, 156, 162, 168, 182-183
+backend\main.py                               86     26    70%   13-22, 50-73, 102-103, 132, 181, 188-192
+backend\middleware\__init__.py                 0      0   100%
+backend\middleware\api_key.py                 37      0   100%
+backend\middleware\rate_limit.py              44      0   100%
+backend\middleware\security.py                29      1    97%   21
+backend\models\__init__.py                     4      0   100%
+backend\models\model.py                       27      0   100%
+backend\models\provider.py                    20      0   100%
+backend\models\user.py                         7      0   100%
+backend\routers\__init__.py                    0      0   100%
+backend\routers\api_keys.py                   90      2    98%   145, 153
+backend\routers\auth.py                       43      4    91%   25, 35, 61-62
+backend\routers\backup.py                     90      9    90%   26, 30, 118, 154-157, 184-190
+backend\routers\models.py                     96     12    88%   123-125, 162, 173-177, 202-210
+backend\routers\providers.py                  89      7    92%   95-96, 98-99, 103, 178-179
+backend\routers\proxy.py                     144      9    94%   114, 135-136, 165, 185-186, 215, 235-236
+backend\routers\usage.py                      27      0   100%
+backend\services\__init__.py                   0      0   100%
+backend\services\auth.py                      35      3    91%   34, 45, 51
+backend\services\health.py                    83     15    82%   80, 85, 130-135, 141-143, 149-152
+backend\services\logging.py                   26      0   100%
+backend\services\masking.py                    8      0   100%
+backend\services\proxy_client.py              74      7    91%   96-97, 138-143
+backend\services\routing.py                   82      6    93%   41-45, 160, 183-186
+backend\services\usage.py                     34      1    97%   59
+backend\tests\__init__.py                      0      0   100%
+backend\tests\conftest.py                     13      0   100%
+backend\tests\test_api_key_middleware.py     102      0   100%
+backend\tests\test_api_keys_crud.py          149      0   100%
+backend\tests\test_auth.py                    93      0   100%
+backend\tests\test_backup.py                 161      0   100%
+backend\tests\test_health_service.py         144      0   100%
+backend\tests\test_logging_service.py         88      0   100%
+backend\tests\test_masking.py                 29      0   100%
+backend\tests\test_models_integration.py     170      0   100%
+backend\tests\test_provider_models.py        104      0   100%
+backend\tests\test_providers.py              148      0   100%
+backend\tests\test_proxy_client.py           151      0   100%
+backend\tests\test_proxy_endpoints.py        168      0   100%
+backend\tests\test_rate_limit.py             119      0   100%
+backend\tests\test_routing.py                135      0   100%
+backend\tests\test_routing_modes.py          131      0   100%
+backend\tests\test_streaming.py              140      2    99%   55-56
+backend\tests\test_usage_endpoint.py         144      0   100%
+------------------------------------------------------------------------
+TOTAL                                       3440    120    97%
+218 passed in 42.48s

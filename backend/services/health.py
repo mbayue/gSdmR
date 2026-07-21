@@ -56,7 +56,7 @@ async def run_health_checks() -> None:
     """Run a single round of health checks for all active providers."""
     db = await get_db()
     cursor = await db.execute(
-        "SELECT id, name, base_url, api_key, is_active FROM providers"
+        "SELECT id, name, base_url, api_key, is_active, auto_disabled FROM providers"
     )
     providers = await cursor.fetchall()
 
