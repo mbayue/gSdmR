@@ -31,8 +31,10 @@ frontend/dist/
 .DS_Store
 Thumbs.db
 
-# Docker
-*.log
+# Coverage / temp
+cov*.txt
+coverage_report.txt
+htmlcov/
 
 # Kiro
 .kiro/
