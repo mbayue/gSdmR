@@ -1,6 +1,11 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { Download, Upload, LogOut, Server } from 'lucide-react';
+import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
+import { Button } from './ui/button';
+import { Separator } from './ui/separator';
 import apiClient from '../api/client';
+import { cn } from '@/lib/utils';
 
 export default function Layout() {
   const { username, logout } = useAuth();
@@ -15,8 +20,9 @@ export default function Layout() {
       a.download = `gsdm-r-backup-${new Date().toISOString().slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
+      toast.success('Configuration exported');
     } catch {
-      alert('Export failed');
+      toast.error('Export failed');
     }
   };
 
@@ -33,40 +39,88 @@ export default function Layout() {
         const res = await apiClient.post('/api/backup/import', formData, {
           headers: { 'Content-Type': 'multipart/form-data' },
         });
-        alert(`Import successful: ${res.data.imported.providers} providers, ${res.data.imported.models} models, ${res.data.imported.api_keys} keys`);
+        toast.success(
+          `Imported: ${res.data.imported.providers} providers, ${res.data.imported.models} models, ${res.data.imported.api_keys} keys`
+        );
         window.location.reload();
       } catch {
-        alert('Import failed');
+        toast.error('Import failed');
       }
     };
     input.click();
   };
 
   return (
-    <div style={{ maxWidth: 1000, margin: '0 auto', padding: 20 }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #ddd', paddingBottom: 12, marginBottom: 24 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 24 }}>
-          <h1 style={{ fontSize: 18, margin: 0 }}>gSdm-R</h1>
-          <nav style={{ display: 'flex', gap: 16 }}>
-            <NavLink to="/" style={({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })}>
-              Providers
-            </NavLink>
-            <NavLink to="/models" style={({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })}>
-              Models
-            </NavLink>
-            <NavLink to="/keys" style={({ isActive }) => ({ fontWeight: isActive ? 'bold' : 'normal' })}>
-              API Keys
-            </NavLink>
-          </nav>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <button onClick={handleExport} style={{ cursor: 'pointer', padding: '4px 12px', fontSize: 12 }}>Export</button>
-          <button onClick={handleImport} style={{ cursor: 'pointer', padding: '4px 12px', fontSize: 12 }}>Import</button>
-          <span style={{ fontSize: 14, color: '#666' }}>{username}</span>
-          <button onClick={logout} style={{ cursor: 'pointer', padding: '4px 12px' }}>Logout</button>
+    <div className="min-h-screen bg-background">
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Server className="h-5 w-5 text-blue-500" />
+              <span className="text-lg font-bold tracking-tight">gSdm-R</span>
+            </div>
+            <Separator orientation="vertical" className="h-6" />
+            <nav className="flex items-center gap-1">
+              <NavLink
+                to="/"
+                end
+                className={({ isActive }) =>
+                  cn(
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  )
+                }
+              >
+                Providers
+              </NavLink>
+              <NavLink
+                to="/models"
+                className={({ isActive }) =>
+                  cn(
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  )
+                }
+              >
+                Models
+              </NavLink>
+              <NavLink
+                to="/keys"
+                className={({ isActive }) =>
+                  cn(
+                    'rounded-md px-3 py-1.5 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-secondary text-foreground'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-secondary/50'
+                  )
+                }
+              >
+                API Keys
+              </NavLink>
+            </nav>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={handleExport}>
+              <Download className="h-4 w-4" />
+              Export
+            </Button>
+            <Button variant="ghost" size="sm" onClick={handleImport}>
+              <Upload className="h-4 w-4" />
+              Import
+            </Button>
+            <Separator orientation="vertical" className="h-6" />
+            <span className="text-sm text-muted-foreground">{username}</span>
+            <Button variant="ghost" size="sm" onClick={logout}>
+              <LogOut className="h-4 w-4" />
+            </Button>
+          </div>
         </div>
       </header>
-      <main>
+      <main className="mx-auto max-w-5xl px-6 py-8">
         <Outlet />
       </main>
     </div>

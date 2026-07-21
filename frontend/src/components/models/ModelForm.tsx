@@ -1,6 +1,14 @@
-import { useState, useEffect, FormEvent } from 'react';
+import { useState, useEffect, type FormEvent } from 'react';
+import { Plus, X } from 'lucide-react';
+import { toast } from 'sonner';
 import apiClient from '../../api/client';
-import type { Model, Provider, ModelProviderMapping } from '../../types';
+import { useCreateModel, useUpdateModel } from '../../hooks/useModels';
+import { useProviders } from '../../hooks/useProviders';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
+import type { Model, ModelProviderMapping } from '../../types';
 
 interface Props {
   model: Model | null;
@@ -16,16 +24,13 @@ export default function ModelForm({ model, onClose }: Props) {
   const [mappings, setMappings] = useState<ModelProviderMapping[]>(
     model?.providers ?? [{ provider_id: 0, provider_model: '', priority: 1 }]
   );
-  const [providers, setProviders] = useState<Provider[]>([]);
   const [providerModels, setProviderModels] = useState<Record<number, AvailableModel[]>>({});
   const [loadingModels, setLoadingModels] = useState<Record<number, boolean>>({});
-  const [error, setError] = useState('');
 
+  const { data: providers = [] } = useProviders();
+  const createModel = useCreateModel();
+  const updateModel = useUpdateModel();
   const isEditing = !!model;
-
-  useEffect(() => {
-    apiClient.get('/api/providers').then((res) => setProviders(res.data));
-  }, []);
 
   const fetchModelsForProvider = async (providerId: number) => {
     if (providerId <= 0 || providerModels[providerId]) return;
@@ -42,7 +47,6 @@ export default function ModelForm({ model, onClose }: Props) {
     }
   };
 
-  // Fetch models for pre-selected providers on mount
   useEffect(() => {
     for (const m of mappings) {
       if (m.provider_id > 0) fetchModelsForProvider(m.provider_id);
@@ -79,129 +83,137 @@ export default function ModelForm({ model, onClose }: Props) {
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
 
     if (!name.trim()) {
-      setError('Model name is required');
+      toast.error('Model name is required');
       return;
     }
 
     const validMappings = mappings.filter((m) => m.provider_id > 0 && m.provider_model.trim() !== '');
     if (validMappings.length === 0) {
-      setError('At least one provider with a model selection is required');
+      toast.error('At least one provider with a model selection is required');
       return;
     }
 
+    const payload = {
+      name,
+      providers: validMappings.map((m) => ({
+        provider_id: m.provider_id,
+        provider_model: m.provider_model,
+        priority: m.priority,
+      })),
+    };
+
     try {
       if (isEditing) {
-        await apiClient.put(`/api/models/${model.id}`, {
-          name,
-          providers: validMappings.map((m) => ({
-            provider_id: m.provider_id,
-            provider_model: m.provider_model,
-            priority: m.priority,
-          })),
-        });
+        await updateModel.mutateAsync({ id: model.id, data: payload });
+        toast.success('Model updated');
       } else {
-        await apiClient.post('/api/models', {
-          name,
-          providers: validMappings.map((m) => ({
-            provider_id: m.provider_id,
-            provider_model: m.provider_model,
-            priority: m.priority,
-          })),
-        });
+        await createModel.mutateAsync(payload);
+        toast.success('Model created');
       }
       onClose();
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { data?: { detail?: string } } };
-        setError(axiosErr.response?.data?.detail ?? 'Error saving model');
+        toast.error(axiosErr.response?.data?.detail ?? 'Error saving model');
       } else {
-        setError('Error saving model');
+        toast.error('Error saving model');
       }
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 16, marginBottom: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-      <h3>{isEditing ? 'Edit Model' : 'Add Model'}</h3>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      {/* Model Name on top */}
-      <div style={{ marginBottom: 16 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>Model Name (your custom alias)</label>
-        <input
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="model-name">Model Name (your custom alias)</Label>
+        <Input
+          id="model-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           required
-          placeholder="e.g., my-gpt4, fast-claude, etc."
-          style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
+          placeholder="e.g., my-gpt4, fast-claude"
         />
       </div>
 
-      {/* Provider + Model mappings */}
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>Provider Routes</label>
-        <div style={{ fontSize: 12, color: '#666', marginBottom: 8 }}>
-          Select which provider and model to route to. Priority 1 = tried first.
-        </div>
-        {mappings.map((mapping, index) => (
-          <div key={index} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
-            {/* Provider select */}
-            <select
-              value={mapping.provider_id}
-              onChange={(e) => updateMappingProvider(index, Number(e.target.value))}
-              style={{ flex: 1, padding: 8 }}
-            >
-              <option value={0}>Provider...</option>
-              {providers.map((p) => (
-                <option key={p.id} value={p.id}>{p.name}</option>
-              ))}
-            </select>
-
-            {/* Model select */}
-            <select
-              value={mapping.provider_model}
-              onChange={(e) => updateMappingModel(index, e.target.value)}
-              style={{ flex: 1, padding: 8 }}
-              disabled={mapping.provider_id <= 0}
-            >
-              <option value="">
-                {mapping.provider_id <= 0
-                  ? 'Select provider first'
-                  : loadingModels[mapping.provider_id]
-                    ? 'Loading...'
-                    : 'Select model...'}
-              </option>
-              {(providerModels[mapping.provider_id] ?? []).map((m) => (
-                <option key={m.id} value={m.id}>{m.id}</option>
-              ))}
-            </select>
-
-            {/* Priority */}
-            <input
-              type="number"
-              min={1}
-              value={mapping.priority}
-              onChange={(e) => updateMappingPriority(index, Number(e.target.value))}
-              style={{ width: 60, padding: 8 }}
-              title="Priority"
-            />
-
-            {mappings.length > 1 && (
-              <button type="button" onClick={() => removeMapping(index)} style={{ cursor: 'pointer', color: 'red' }}>✗</button>
-            )}
+      <div className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <Label>Provider Routes</Label>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Select provider and model to route to. Priority 1 = tried first.
+            </p>
           </div>
-        ))}
-        <button type="button" onClick={addMapping} style={{ cursor: 'pointer', fontSize: 13 }}>
-          + Add Route
-        </button>
+          <Button type="button" variant="outline" size="sm" onClick={addMapping}>
+            <Plus className="h-3 w-3" />
+            Add Route
+          </Button>
+        </div>
+
+        <div className="space-y-2">
+          {mappings.map((mapping, index) => (
+            <div key={index} className="flex items-center gap-2">
+              <Select
+                value={mapping.provider_id > 0 ? String(mapping.provider_id) : ''}
+                onValueChange={(val) => updateMappingProvider(index, Number(val))}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue placeholder="Provider..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {providers.map((p) => (
+                    <SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={mapping.provider_model}
+                onValueChange={(val) => updateMappingModel(index, val)}
+                disabled={mapping.provider_id <= 0}
+              >
+                <SelectTrigger className="flex-1">
+                  <SelectValue
+                    placeholder={
+                      mapping.provider_id <= 0
+                        ? 'Select provider first'
+                        : loadingModels[mapping.provider_id]
+                          ? 'Loading...'
+                          : 'Select model...'
+                    }
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {(providerModels[mapping.provider_id] ?? []).map((m) => (
+                    <SelectItem key={m.id} value={m.id}>{m.id}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Input
+                type="number"
+                min={1}
+                value={mapping.priority}
+                onChange={(e) => updateMappingPriority(index, Number(e.target.value))}
+                className="w-16"
+                title="Priority"
+              />
+
+              {mappings.length > 1 && (
+                <Button type="button" variant="ghost" size="icon" onClick={() => removeMapping(index)}>
+                  <X className="h-4 w-4 text-destructive" />
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" style={{ padding: '8px 16px', cursor: 'pointer' }}>Save</button>
-        <button type="button" onClick={onClose} style={{ padding: '8px 16px', cursor: 'pointer' }}>Cancel</button>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+        <Button type="submit" disabled={createModel.isPending || updateModel.isPending}>
+          {(createModel.isPending || updateModel.isPending) ? 'Saving...' : 'Save'}
+        </Button>
       </div>
     </form>
   );

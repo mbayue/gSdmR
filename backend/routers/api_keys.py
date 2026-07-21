@@ -34,8 +34,8 @@ class ApiKeyResponse(BaseModel):
 
 
 def generate_api_key() -> str:
-    """Generate a random API key with 'sk-gsdm' prefix."""
-    return "sk-gsdm" + secrets.token_hex(24)
+    """Generate a random API key with 'sk-gsdm-' prefix."""
+    return "sk-gsdm-" + secrets.token_hex(24)
 
 
 async def _get_allowed_models(db, api_key_id: int) -> list[dict]:

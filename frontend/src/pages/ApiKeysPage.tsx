@@ -1,70 +1,85 @@
-import { useState, useEffect } from 'react';
-import apiClient from '../api/client';
-import type { Model } from '../types';
-
-interface ApiKey {
-  id: number;
-  name: string;
-  key_preview: string;
-  key_value?: string; // only on create
-  is_active: boolean;
-  allowed_models: { id: number; name: string }[];
-  created_at: string;
-}
+import { useState } from 'react';
+import { Plus, Trash2, Copy, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import {
+  useApiKeys,
+  useAvailableModels,
+  useCreateApiKey,
+  useToggleApiKey,
+  useDeleteApiKey,
+} from '../hooks/useApiKeys';
+import { Button } from '../components/ui/button';
+import { Badge } from '../components/ui/badge';
+import { Input } from '../components/ui/input';
+import { Label } from '../components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '../components/ui/dialog';
+import type { ApiKey } from '../hooks/useApiKeys';
 
 export default function ApiKeysPage() {
-  const [keys, setKeys] = useState<ApiKey[]>([]);
-  const [models, setModels] = useState<Model[]>([]);
+  const { data: keys = [], isLoading } = useApiKeys();
+  const { data: models = [] } = useAvailableModels();
+  const createApiKey = useCreateApiKey();
+  const toggleApiKey = useToggleApiKey();
+  const deleteApiKey = useDeleteApiKey();
+
   const [showForm, setShowForm] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [selectedModelIds, setSelectedModelIds] = useState<number[]>([]);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
-  const [error, setError] = useState('');
-
-  const fetchKeys = async () => {
-    const res = await apiClient.get('/api/keys');
-    setKeys(res.data);
-  };
-
-  const fetchModels = async () => {
-    const res = await apiClient.get('/api/models');
-    setModels(res.data);
-  };
-
-  useEffect(() => {
-    fetchKeys();
-    fetchModels();
-  }, []);
+  const [copied, setCopied] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<ApiKey | null>(null);
 
   const handleCreate = async () => {
-    setError('');
     if (!newKeyName.trim()) {
-      setError('Name is required');
+      toast.error('Name is required');
       return;
     }
     try {
-      const res = await apiClient.post('/api/keys', {
+      const result = await createApiKey.mutateAsync({
         name: newKeyName,
         model_ids: selectedModelIds,
       });
-      setCreatedKey(res.data.key_value);
+      setCreatedKey(result.key_value);
       setNewKeyName('');
       setSelectedModelIds([]);
-      fetchKeys();
+      toast.success('API key generated');
     } catch {
-      setError('Error creating key');
+      toast.error('Error creating key');
     }
   };
 
-  const handleToggle = async (key: ApiKey) => {
-    await apiClient.put(`/api/keys/${key.id}`, { is_active: !key.is_active });
-    fetchKeys();
+  const handleCopy = async () => {
+    if (!createdKey) return;
+    await navigator.clipboard.writeText(createdKey);
+    setCopied(true);
+    toast.success('Copied to clipboard');
+    setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleDelete = async (id: number) => {
-    if (!confirm('Delete this API key?')) return;
-    await apiClient.delete(`/api/keys/${id}`);
-    fetchKeys();
+  const handleToggle = (key: ApiKey) => {
+    toggleApiKey.mutate(
+      { id: key.id, is_active: !key.is_active },
+      { onSuccess: () => toast.success(`Key "${key.name}" ${key.is_active ? 'disabled' : 'enabled'}`) }
+    );
+  };
+
+  const handleDelete = () => {
+    if (!deleteTarget) return;
+    deleteApiKey.mutate(deleteTarget.id, {
+      onSuccess: () => {
+        toast.success(`Key "${deleteTarget.name}" deleted`);
+        setDeleteTarget(null);
+      },
+      onError: () => toast.error('Failed to delete key'),
+    });
   };
 
   const toggleModel = (modelId: number) => {
@@ -73,96 +88,180 @@ export default function ApiKeysPage() {
     );
   };
 
+  const handleOpenForm = () => {
+    setShowForm(true);
+    setCreatedKey(null);
+    setCopied(false);
+  };
+
+  if (isLoading) {
+    return <div className="text-muted-foreground text-sm">Loading API keys...</div>;
+  }
+
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-        <h2>API Keys</h2>
-        <button onClick={() => { setShowForm(!showForm); setCreatedKey(null); }} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-          {showForm ? 'Close' : 'Generate New Key'}
-        </button>
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">API Keys</h1>
+          <p className="text-sm text-muted-foreground">Manage keys for accessing the router proxy</p>
+        </div>
+        <Button onClick={handleOpenForm} size="sm">
+          <Plus className="h-4 w-4" />
+          Generate Key
+        </Button>
       </div>
 
-      {showForm && (
-        <div style={{ padding: 16, marginBottom: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-          <h3>Generate API Key</h3>
-          {error && <p style={{ color: 'red' }}>{error}</p>}
+      <div className="rounded-lg border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>Name</TableHead>
+              <TableHead>Key</TableHead>
+              <TableHead>Models</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead className="w-[100px]">Actions</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {keys.map((k) => (
+              <TableRow key={k.id}>
+                <TableCell className="font-medium">{k.name}</TableCell>
+                <TableCell className="font-mono text-xs text-muted-foreground">{k.key_preview}</TableCell>
+                <TableCell>
+                  {k.allowed_models.length === 0 ? (
+                    <span className="text-xs text-muted-foreground">All models</span>
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {k.allowed_models.map((m) => (
+                        <Badge key={m.id} variant="secondary" className="text-xs font-normal">
+                          {m.name}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </TableCell>
+                <TableCell>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleToggle(k)}
+                    className="h-auto p-0"
+                  >
+                    <Badge variant={k.is_active ? 'default' : 'destructive'}>
+                      {k.is_active ? 'Active' : 'Disabled'}
+                    </Badge>
+                  </Button>
+                </TableCell>
+                <TableCell>
+                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(k)}>
+                    <Trash2 className="h-4 w-4 text-destructive" />
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+            {keys.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                  No API keys generated yet.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </div>
+
+      {/* Generate Key Dialog */}
+      <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Generate API Key</DialogTitle>
+            <DialogDescription>
+              Create a new key for authenticating with the router proxy.
+            </DialogDescription>
+          </DialogHeader>
 
           {createdKey && (
-            <div style={{ padding: 12, marginBottom: 12, background: '#e8f5e9', borderRadius: 4, border: '1px solid #a5d6a7' }}>
-              <p style={{ margin: 0, fontWeight: 'bold' }}>Key created! Copy it now — it won't be shown again:</p>
-              <code style={{ display: 'block', marginTop: 8, padding: 8, background: '#fff', borderRadius: 4, wordBreak: 'break-all' }}>
-                {createdKey}
-              </code>
+            <div className="rounded-md border border-green-800 bg-green-950/50 p-4 space-y-2">
+              <p className="text-sm font-medium text-green-400">
+                Key created! Copy it now — it won't be shown again.
+              </p>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 rounded bg-background p-2 text-xs break-all font-mono">
+                  {createdKey}
+                </code>
+                <Button variant="outline" size="icon" onClick={handleCopy}>
+                  {copied ? <Check className="h-4 w-4 text-green-500" /> : <Copy className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
           )}
 
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>Key Name</label>
-            <input
-              value={newKeyName}
-              onChange={(e) => setNewKeyName(e.target.value)}
-              placeholder="e.g., Production, Testing, User-A"
-              style={{ width: '100%', padding: 8, boxSizing: 'border-box' }}
-            />
-          </div>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="key-name">Key Name</Label>
+              <Input
+                id="key-name"
+                value={newKeyName}
+                onChange={(e) => setNewKeyName(e.target.value)}
+                placeholder="e.g., Production, Testing, User-A"
+              />
+            </div>
 
-          <div style={{ marginBottom: 12 }}>
-            <label style={{ display: 'block', marginBottom: 4 }}>
-              Model Restrictions <span style={{ color: '#888', fontSize: 12 }}>(none selected = all models allowed)</span>
-            </label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {models.map((m) => (
-                <label key={m.id} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '4px 8px', background: selectedModelIds.includes(m.id) ? '#e3f2fd' : '#f5f5f5', borderRadius: 4, cursor: 'pointer' }}>
-                  <input
-                    type="checkbox"
-                    checked={selectedModelIds.includes(m.id)}
-                    onChange={() => toggleModel(m.id)}
-                  />
-                  {m.name}
-                </label>
-              ))}
-              {models.length === 0 && <span style={{ color: '#888' }}>No models configured yet</span>}
+            <div className="space-y-2">
+              <Label>
+                Model Restrictions{' '}
+                <span className="text-muted-foreground font-normal">(none = all models allowed)</span>
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {models.map((m) => (
+                  <label
+                    key={m.id}
+                    className={`flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm cursor-pointer transition-colors ${
+                      selectedModelIds.includes(m.id)
+                        ? 'bg-blue-500/10 border-blue-500/50 text-blue-400'
+                        : 'border-border hover:bg-secondary'
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedModelIds.includes(m.id)}
+                      onChange={() => toggleModel(m.id)}
+                      className="sr-only"
+                    />
+                    {m.name}
+                  </label>
+                ))}
+                {models.length === 0 && (
+                  <span className="text-sm text-muted-foreground">No models configured yet</span>
+                )}
+              </div>
             </div>
           </div>
 
-          <button onClick={handleCreate} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-            Generate Key
-          </button>
-        </div>
-      )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowForm(false)}>Close</Button>
+            <Button onClick={handleCreate} disabled={createApiKey.isPending}>
+              {createApiKey.isPending ? 'Generating...' : 'Generate Key'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-        <thead>
-          <tr style={{ borderBottom: '2px solid #ddd', textAlign: 'left' }}>
-            <th style={{ padding: 8 }}>Name</th>
-            <th style={{ padding: 8 }}>Key</th>
-            <th style={{ padding: 8 }}>Models</th>
-            <th style={{ padding: 8 }}>Active</th>
-            <th style={{ padding: 8 }}>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {keys.map((k) => (
-            <tr key={k.id} style={{ borderBottom: '1px solid #eee' }}>
-              <td style={{ padding: 8 }}>{k.name}</td>
-              <td style={{ padding: 8, fontFamily: 'monospace', fontSize: 12 }}>{k.key_preview}</td>
-              <td style={{ padding: 8, fontSize: 13 }}>
-                {k.allowed_models.length === 0
-                  ? <span style={{ color: '#888' }}>All</span>
-                  : k.allowed_models.map((m) => m.name).join(', ')}
-              </td>
-              <td style={{ padding: 8 }}>
-                <button onClick={() => handleToggle(k)} style={{ cursor: 'pointer', color: k.is_active ? 'green' : 'red' }}>
-                  {k.is_active ? '✓ Active' : '✗ Disabled'}
-                </button>
-              </td>
-              <td style={{ padding: 8 }}>
-                <button onClick={() => handleDelete(k.id)} style={{ cursor: 'pointer', color: 'red' }}>Delete</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete API Key</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{deleteTarget?.name}&quot;? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

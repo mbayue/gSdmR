@@ -1,5 +1,9 @@
-import { useState, FormEvent } from 'react';
-import apiClient from '../../api/client';
+import { useState, type FormEvent } from 'react';
+import { toast } from 'sonner';
+import { useCreateProvider, useUpdateProvider } from '../../hooks/useProviders';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import type { Provider } from '../../types';
 
 interface Props {
@@ -12,13 +16,13 @@ export default function ProviderForm({ provider, onClose }: Props) {
   const [baseUrl, setBaseUrl] = useState(provider?.base_url ?? '');
   const [apiKey, setApiKey] = useState('');
   const [isActive, setIsActive] = useState(provider?.is_active ?? true);
-  const [error, setError] = useState('');
 
+  const createProvider = useCreateProvider();
+  const updateProvider = useUpdateProvider();
   const isEditing = !!provider;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setError('');
 
     try {
       if (isEditing) {
@@ -27,53 +31,79 @@ export default function ProviderForm({ provider, onClose }: Props) {
         if (baseUrl !== provider.base_url) update.base_url = baseUrl;
         if (apiKey) update.api_key = apiKey;
         if (isActive !== provider.is_active) update.is_active = isActive;
-        await apiClient.put(`/api/providers/${provider.id}`, update);
+        await updateProvider.mutateAsync({ id: provider.id, data: update });
+        toast.success('Provider updated');
       } else {
-        await apiClient.post('/api/providers', { name, base_url: baseUrl, api_key: apiKey });
+        await createProvider.mutateAsync({ name, base_url: baseUrl, api_key: apiKey });
+        toast.success('Provider created');
       }
       onClose();
     } catch (err: unknown) {
       if (err && typeof err === 'object' && 'response' in err) {
         const axiosErr = err as { response?: { data?: { detail?: string } } };
-        setError(axiosErr.response?.data?.detail ?? 'Error saving provider');
+        toast.error(axiosErr.response?.data?.detail ?? 'Error saving provider');
       } else {
-        setError('Error saving provider');
+        toast.error('Error saving provider');
       }
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} style={{ padding: 16, marginBottom: 16, border: '1px solid #ddd', borderRadius: 8 }}>
-      <h3>{isEditing ? 'Edit Provider' : 'Add Provider'}</h3>
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>Name</label>
-        <input value={name} onChange={(e) => setName(e.target.value)} required style={{ width: '100%', padding: 8, boxSizing: 'border-box' }} />
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="space-y-2">
+        <Label htmlFor="provider-name">Name</Label>
+        <Input
+          id="provider-name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          required
+          placeholder="e.g., OpenAI, Anthropic"
+        />
       </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>Base URL</label>
-        <input value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} required style={{ width: '100%', padding: 8, boxSizing: 'border-box' }} />
+      <div className="space-y-2">
+        <Label htmlFor="provider-url">Base URL</Label>
+        <Input
+          id="provider-url"
+          value={baseUrl}
+          onChange={(e) => setBaseUrl(e.target.value)}
+          required
+          placeholder="https://api.openai.com/v1"
+        />
       </div>
 
-      <div style={{ marginBottom: 12 }}>
-        <label style={{ display: 'block', marginBottom: 4 }}>API Key {isEditing && '(leave blank to keep current)'}</label>
-        <input value={apiKey} onChange={(e) => setApiKey(e.target.value)} required={!isEditing} type="password" style={{ width: '100%', padding: 8, boxSizing: 'border-box' }} />
+      <div className="space-y-2">
+        <Label htmlFor="provider-key">
+          API Key {isEditing && <span className="text-muted-foreground font-normal">(leave blank to keep current)</span>}
+        </Label>
+        <Input
+          id="provider-key"
+          value={apiKey}
+          onChange={(e) => setApiKey(e.target.value)}
+          required={!isEditing}
+          type="password"
+          placeholder={isEditing ? '••••••••' : 'sk-...'}
+        />
       </div>
 
       {isEditing && (
-        <div style={{ marginBottom: 12 }}>
-          <label>
-            <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
-            {' '}Active
-          </label>
+        <div className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            id="provider-active"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+            className="h-4 w-4 rounded border-input"
+          />
+          <Label htmlFor="provider-active" className="font-normal">Active</Label>
         </div>
       )}
 
-      <div style={{ display: 'flex', gap: 8 }}>
-        <button type="submit" style={{ padding: '8px 16px', cursor: 'pointer' }}>Save</button>
-        <button type="button" onClick={onClose} style={{ padding: '8px 16px', cursor: 'pointer' }}>Cancel</button>
+      <div className="flex justify-end gap-2 pt-2">
+        <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+        <Button type="submit" disabled={createProvider.isPending || updateProvider.isPending}>
+          {(createProvider.isPending || updateProvider.isPending) ? 'Saving...' : 'Save'}
+        </Button>
       </div>
     </form>
   );
