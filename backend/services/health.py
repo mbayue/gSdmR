@@ -35,21 +35,23 @@ _health_state: dict[int, ProviderHealth] = {}
 _health_task: asyncio.Task | None = None
 
 
-async def check_provider(provider_id: int, name: str, base_url: str, api_key: str) -> bool:
+async def check_provider(provider_id: int, name: str, base_url: str, api_key: str) -> tuple[bool, int]:
     """Ping a provider's /models endpoint to check if it's alive.
 
-    Returns True if healthy, False if unhealthy.
+    Returns (healthy, latency_ms).
     """
     url = f"{base_url.rstrip('/')}/models"
     try:
         async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+            start = time.time()
             response = await client.get(
                 url,
                 headers={"Authorization": f"Bearer {api_key}"},
             )
-            return 200 <= response.status_code < 500  # Any non-server-error means alive
+            latency_ms = int((time.time() - start) * 1000)
+            return 200 <= response.status_code < 500, latency_ms
     except (httpx.RequestError, httpx.TimeoutException):
-        return False
+        return False, 0
 
 
 async def run_health_checks() -> None:
@@ -85,10 +87,17 @@ async def run_health_checks() -> None:
             continue
 
         # Perform check
-        healthy = await check_provider(
+        healthy, latency_ms = await check_provider(
             provider_id, row["name"], row["base_url"], row["api_key"]
         )
         state.last_check = now
+
+        # Store health check result in DB
+        await db.execute(
+            "INSERT INTO health_checks (provider_id, status, latency_ms) VALUES (?, ?, ?)",
+            (provider_id, "healthy" if healthy else "unhealthy", latency_ms),
+        )
+        await db.commit()
 
         if healthy:
             if state.consecutive_failures > 0:
