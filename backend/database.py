@@ -149,6 +149,32 @@ async def init_db() -> None:
     await db.executescript(SCHEMA_SQL)
     await db.commit()
 
+    # Migrations — add columns that may not exist in older databases
+    try:
+        await db.execute("ALTER TABLE models ADD COLUMN load_balance TEXT NOT NULL DEFAULT 'priority'")
+        await db.commit()
+    except Exception:
+        pass  # Column already exists
+
+    try:
+        await db.execute("ALTER TABLE api_keys ADD COLUMN rate_limit INTEGER NOT NULL DEFAULT 60")
+        await db.commit()
+    except Exception:
+        pass  # Column already exists
+
+    try:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS model_aliases (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                alias TEXT NOT NULL UNIQUE,
+                model_id INTEGER NOT NULL,
+                FOREIGN KEY (model_id) REFERENCES models(id) ON DELETE CASCADE
+            )
+        """)
+        await db.commit()
+    except Exception:
+        pass  # Table already exists
+
     # Seed default providers
     for provider in DEFAULT_PROVIDERS:
         await db.execute(
