@@ -1,0 +1,30 @@
+# Git
+.git
+.gitignore
+
+# Python
+backend/venv/
+backend/__pycache__/
+backend/tests/
+backend/*.db
+backend/*.db-*
+backend/.env
+
+# Node
+frontend/node_modules/
+frontend/dist/
+
+# IDE
+.vscode/
+.idea/
+.kiro/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs
+*.md
+!README.md
+LICENSE
+AGENTS.md
