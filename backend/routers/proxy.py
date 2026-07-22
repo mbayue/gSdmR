@@ -28,7 +28,7 @@ class ChatMessage(BaseModel):
 class ChatCompletionRequest(BaseModel):
     model_config = {"extra": "allow"}
 
-    model: str = Field(..., json_schema_extra={"example": "gpt"})
+    model: str = Field(..., json_schema_extra={"example": "deepseek-v4-flash"})
     messages: List[ChatMessage] = Field(..., min_length=1)
     temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.7})
     max_tokens: Optional[int] = Field(None, json_schema_extra={"example": 1024})
@@ -44,7 +44,7 @@ class AnthropicMessage(BaseModel):
 class AnthropicRequest(BaseModel):
     model_config = {"extra": "allow"}
 
-    model: str = Field(..., json_schema_extra={"example": "gpt"})
+    model: str = Field(..., json_schema_extra={"example": "deepseek-v4-flash"})
     messages: List[AnthropicMessage] = Field(..., min_length=1)
     max_tokens: Optional[int] = Field(1024, json_schema_extra={"example": 1024})
     temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.7})
@@ -55,7 +55,7 @@ class AnthropicRequest(BaseModel):
 class ResponsesRequest(BaseModel):
     model_config = {"extra": "allow"}
 
-    model: str = Field(..., json_schema_extra={"example": "gpt"})
+    model: str = Field(..., json_schema_extra={"example": "deepseek-v4-flash"})
     input: Any = Field(..., json_schema_extra={"example": "Hello!"})
     temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.7})
     max_output_tokens: Optional[int] = Field(None, json_schema_extra={"example": 1024})
@@ -66,7 +66,7 @@ class ResponsesRequest(BaseModel):
     tool_choice: Optional[Any] = None
 
 class ModelInfo(BaseModel):
-    id: str = Field(..., json_schema_extra={"example": "gpt"})
+    id: str = Field(..., json_schema_extra={"example": "deepseek-v4-flash"})
     object: str = Field("model")
     created: int = Field(..., json_schema_extra={"example": 1784641000})
     owned_by: str = Field("router")
@@ -273,4 +273,5 @@ async def list_models(key_info: dict = Depends(validate_api_key)):
         })
 
     return {"object": "list", "data": models}
+
 
