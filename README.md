@@ -42,7 +42,7 @@ Open `http://localhost:3000` — login with `admin` / `admin`.
 ## Docker
 
 ```bash
-# Single container (frontend + backend)
+# Single container (frontend + backend + nginx)
 docker build -t gsdm-r .
 docker run -d -p 3000:80 -v gsdm-data:/app/data --env-file backend/.env --name gsdm-r gsdm-r
 
@@ -96,6 +96,8 @@ All config via environment variables (or `backend/.env`):
 | `GET` | `/api/usage` | Usage statistics |
 | `GET` | `/api/backup/export` | Export config as JSON |
 | `POST` | `/api/backup/import` | Import config from JSON |
+| `GET` | `/api/status` | Public status page data (no auth) |
+| `GET` | `/health` | Health check (no auth) |
 
 ### Authentication
 
@@ -160,13 +162,22 @@ Each API key can optionally be restricted to specific models. Keys with no model
 Back up and restore your entire configuration (providers, models, API keys):
 
 ```bash
-# Export
-curl -H "Authorization: Bearer $TOKEN" http://localhost:8000/api/backup/export > backup.json
+# Export (requires password confirmation)
+curl -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/backup/export?password=admin" > backup.json
 
 # Import to another instance
 curl -H "Authorization: Bearer $TOKEN" -F "file=@backup.json" \
   http://localhost:8000/api/backup/import
 ```
+
+### Status Page
+
+Public health dashboard at `/status` (no auth required):
+- Gatus-style grid with uptime bars per provider
+- Hover tooltips showing timestamp, latency, status
+- Filter by health, sort by name/latency/uptime
+- Configurable auto-refresh (10s to 10m)
+- Provider health history stored in DB
 
 ## Error Format
 
