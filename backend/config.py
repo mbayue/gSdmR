@@ -35,4 +35,9 @@ if not DEFAULT_ADMIN_PASSWORD:
     print(f"Set DEFAULT_ADMIN_PASSWORD in .env for persistence.")
 
 # Default API key (used only on first DB init)
-DEFAULT_API_KEY: str = os.environ.get("DEFAULT_API_KEY", "sk-gsdm-default-key-change-me")
+DEFAULT_API_KEY: str = os.environ.get("DEFAULT_API_KEY", "")
+if not DEFAULT_API_KEY:
+    import secrets as _secrets3
+    DEFAULT_API_KEY = "sk-gsdm-" + _secrets3.token_hex(24)
+    print(f"WARNING: No DEFAULT_API_KEY set. Generated: {DEFAULT_API_KEY}")
+    print(f"Set DEFAULT_API_KEY in .env for persistence.")
