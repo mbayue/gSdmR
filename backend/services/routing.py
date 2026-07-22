@@ -148,7 +148,7 @@ async def route_request(
                     "code": 404,
                 }
             },
-        )
+        ), None
 
     # Order providers based on load balancing mode
     ordered = await _order_providers(providers, load_balance, model_name)
@@ -171,7 +171,7 @@ async def route_request(
         )
 
         if success:
-            return result
+            return result, provider["name"]
 
         error_type = result.get("error_type", "unknown") if isinstance(result, dict) else str(result)
         status_code = result.get("status_code") if isinstance(result, dict) else None
@@ -195,7 +195,7 @@ async def route_request(
                         "provider": provider["name"],
                     }
                 },
-            )
+            ), provider["name"]
 
         log_failure(provider["name"], error_type, model_name)
 
@@ -208,4 +208,4 @@ async def route_request(
                 "code": 503,
             }
         },
-    )
+    ), None

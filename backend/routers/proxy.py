@@ -123,7 +123,7 @@ async def openai_chat_completions(
     is_streaming = body.get("stream", False)
 
     with RequestTimer() as timer:
-        response = await route_request(model_name=model_name, request_body=body, endpoint_path="chat/completions", is_streaming=is_streaming)
+        response, provider_used = await route_request(model_name=model_name, request_body=body, endpoint_path="chat/completions", is_streaming=is_streaming)
 
     # Log usage in background
     status_code = response.status_code if hasattr(response, "status_code") else 200
@@ -138,7 +138,7 @@ async def openai_chat_completions(
     await log_usage(UsageRecord(
         api_key_id=key_info["key_id"],
         model_name=model_name,
-        provider_name=None,
+        provider_name=provider_used,
         endpoint="chat/completions",
         status_code=status_code,
         latency_ms=timer.elapsed_ms,
@@ -174,7 +174,7 @@ async def anthropic_messages(
     is_streaming = body.get("stream", False)
 
     with RequestTimer() as timer:
-        response = await route_request(model_name=model_name, request_body=body, endpoint_path="messages", is_streaming=is_streaming)
+        response, provider_used = await route_request(model_name=model_name, request_body=body, endpoint_path="messages", is_streaming=is_streaming)
 
     status_code = response.status_code if hasattr(response, "status_code") else 200
     tokens = (0, 0, 0)
@@ -188,7 +188,7 @@ async def anthropic_messages(
     await log_usage(UsageRecord(
         api_key_id=key_info["key_id"],
         model_name=model_name,
-        provider_name=None,
+        provider_name=provider_used,
         endpoint="messages",
         status_code=status_code,
         latency_ms=timer.elapsed_ms,
@@ -224,7 +224,7 @@ async def openai_responses(
     is_streaming = body.get("stream", False)
 
     with RequestTimer() as timer:
-        response = await route_request(model_name=model_name, request_body=body, endpoint_path="responses", is_streaming=is_streaming)
+        response, provider_used = await route_request(model_name=model_name, request_body=body, endpoint_path="responses", is_streaming=is_streaming)
 
     status_code = response.status_code if hasattr(response, "status_code") else 200
     tokens = (0, 0, 0)
@@ -238,7 +238,7 @@ async def openai_responses(
     await log_usage(UsageRecord(
         api_key_id=key_info["key_id"],
         model_name=model_name,
-        provider_name=None,
+        provider_name=provider_used,
         endpoint="responses",
         status_code=status_code,
         latency_ms=timer.elapsed_ms,
@@ -273,3 +273,4 @@ async def list_models(key_info: dict = Depends(validate_api_key)):
         })
 
     return {"object": "list", "data": models}
+
