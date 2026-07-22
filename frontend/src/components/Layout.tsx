@@ -16,6 +16,11 @@ export default function Layout() {
   const [showExportDialog, setShowExportDialog] = useState(false);
   const [exportPassword, setExportPassword] = useState('');
   const [exporting, setExporting] = useState(false);
+  const [showPasswordDialog, setShowPasswordDialog] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [changingPassword, setChangingPassword] = useState(false);
 
   const handleExport = async () => {
     if (!exportPassword) return;
@@ -36,6 +41,33 @@ export default function Layout() {
       toast.error('Export failed — wrong password or server error');
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleChangePassword = async () => {
+    if (newPassword !== confirmPassword) {
+      toast.error('Passwords do not match');
+      return;
+    }
+    if (newPassword.length < 4) {
+      toast.error('Password must be at least 4 characters');
+      return;
+    }
+    setChangingPassword(true);
+    try {
+      await apiClient.put('/api/auth/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+      });
+      toast.success('Password changed successfully');
+      setShowPasswordDialog(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch {
+      toast.error('Failed — check your current password');
+    } finally {
+      setChangingPassword(false);
     }
   };
 
@@ -139,7 +171,9 @@ export default function Layout() {
               Import
             </Button>
             <Separator orientation="vertical" className="h-6" />
-            <span className="text-sm text-muted-foreground">{username}</span>
+            <Button variant="ghost" size="sm" onClick={() => setShowPasswordDialog(true)} className="text-muted-foreground">
+              {username}
+            </Button>
             <Button variant="ghost" size="sm" onClick={logout}>
               <LogOut className="h-4 w-4" />
             </Button>
@@ -177,6 +211,57 @@ export default function Layout() {
             </Button>
             <Button onClick={handleExport} disabled={!exportPassword || exporting}>
               {exporting ? 'Exporting...' : 'Export'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Change Password Dialog */}
+      <Dialog open={showPasswordDialog} onOpenChange={(open) => { if (!open) { setShowPasswordDialog(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Change Password</DialogTitle>
+            <DialogDescription>
+              Update your admin password.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="current-pass">Current Password</Label>
+              <Input
+                id="current-pass"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="new-pass">New Password</Label>
+              <Input
+                id="new-pass"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-pass">Confirm New Password</Label>
+              <Input
+                id="confirm-pass"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                onKeyDown={(e) => { if (e.key === 'Enter') handleChangePassword(); }}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowPasswordDialog(false); setCurrentPassword(''); setNewPassword(''); setConfirmPassword(''); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleChangePassword} disabled={changingPassword || !currentPassword || !newPassword}>
+              {changingPassword ? 'Updating...' : 'Update Password'}
             </Button>
           </DialogFooter>
         </DialogContent>
