@@ -192,6 +192,7 @@ async def route_request(
                         "message": msg,
                         "type": "provider_error",
                         "code": status_code,
+                        "provider": provider["name"],
                     }
                 },
             )
