@@ -123,7 +123,7 @@ export default function UsagePage() {
                     cx="50%"
                     cy="50%"
                     outerRadius={80}
-                    label={({ model }) => model}
+                    label={({ name }) => name as string}
                     labelLine={false}
                   >
                     {by_model.map((_, i) => (

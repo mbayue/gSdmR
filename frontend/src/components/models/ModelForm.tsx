@@ -14,26 +14,6 @@ interface Props {
   onClose: () => void;
 }
 
-function ProviderModelSelect({ providerId, value, onChange }: { providerId: number; value: string; onChange: (v: string) => void }) {
-  const { data: models = [], isLoading } = useProviderModels(providerId);
-
-  return (
-    <select
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
-      disabled={providerId <= 0}
-    >
-      <option value="">
-        {providerId <= 0 ? 'Select provider first' : isLoading ? 'Loading...' : 'Select model...'}
-      </option>
-      {models.map((m: { id: string }) => (
-        <option key={m.id} value={m.id}>{m.id}</option>
-      ))}
-    </select>
-  );
-}
-
 function ProviderModelOptions({ providerId }: { providerId: number }) {
   const { data: models = [], isLoading } = useProviderModels(providerId);
 
@@ -74,7 +54,6 @@ export default function ModelForm({ model, onClose }: Props) {
     const updated = [...mappings];
     updated[index] = { ...updated[index], provider_id: providerId, provider_model: '' };
     setMappings(updated);
-    if (providerId > 0) fetchModelsForProvider(providerId);
   };
 
   const updateMappingModel = (index: number, providerModel: string) => {
