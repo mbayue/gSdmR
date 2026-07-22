@@ -42,7 +42,7 @@ async def check_provider(provider_id: int, name: str, base_url: str, api_key: st
     """
     url = f"{base_url.rstrip('/')}/models"
     try:
-        async with httpx.AsyncClient(timeout=10.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             start = time.time()
             response = await client.get(
                 url,

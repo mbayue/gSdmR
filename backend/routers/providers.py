@@ -156,7 +156,7 @@ async def list_provider_models(
     api_key = row["api_key"]
 
     try:
-        async with httpx.AsyncClient(timeout=15.0, verify=False) as client:
+        async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
                 f"{base_url}/models",
                 headers={"Authorization": f"Bearer {api_key}"},
