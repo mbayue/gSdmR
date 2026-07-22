@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { Plus, Trash2, Copy, Check } from 'lucide-react';
+import { Plus, Trash2, Copy, Check, Pencil } from 'lucide-react';
 import { toast } from 'sonner';
 import {
   useApiKeys,
   useAvailableModels,
   useCreateApiKey,
+  useUpdateApiKey,
   useToggleApiKey,
   useDeleteApiKey,
 } from '../hooks/useApiKeys';
@@ -27,10 +28,12 @@ export default function ApiKeysPage() {
   const { data: keys = [], isLoading } = useApiKeys();
   const { data: models = [] } = useAvailableModels();
   const createApiKey = useCreateApiKey();
+  const updateApiKey = useUpdateApiKey();
   const toggleApiKey = useToggleApiKey();
   const deleteApiKey = useDeleteApiKey();
 
   const [showForm, setShowForm] = useState(false);
+  const [editTarget, setEditTarget] = useState<ApiKey | null>(null);
   const [newKeyName, setNewKeyName] = useState('');
   const [selectedModelIds, setSelectedModelIds] = useState<number[]>([]);
   const [createdKey, setCreatedKey] = useState<string | null>(null);
@@ -90,8 +93,37 @@ export default function ApiKeysPage() {
 
   const handleOpenForm = () => {
     setShowForm(true);
+    setEditTarget(null);
     setCreatedKey(null);
     setCopied(false);
+    setNewKeyName('');
+    setSelectedModelIds([]);
+  };
+
+  const handleEdit = (key: ApiKey) => {
+    setEditTarget(key);
+    setNewKeyName(key.name);
+    setSelectedModelIds(key.allowed_models.map((m) => m.id));
+    setCreatedKey(null);
+    setShowForm(true);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editTarget || !newKeyName.trim()) return;
+    try {
+      await updateApiKey.mutateAsync({
+        id: editTarget.id,
+        data: {
+          name: newKeyName,
+          model_ids: selectedModelIds,
+        },
+      });
+      toast.success('API key updated');
+      setShowForm(false);
+      setEditTarget(null);
+    } catch {
+      toast.error('Failed to update key');
+    }
   };
 
   if (isLoading) {
@@ -153,9 +185,14 @@ export default function ApiKeysPage() {
                   </Button>
                 </TableCell>
                 <TableCell>
-                  <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(k)}>
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button variant="ghost" size="icon" onClick={() => handleEdit(k)}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setDeleteTarget(k)}>
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -170,17 +207,17 @@ export default function ApiKeysPage() {
         </Table>
       </div>
 
-      {/* Generate Key Dialog */}
-      <Dialog open={showForm} onOpenChange={(open) => !open && setShowForm(false)}>
+      {/* Generate/Edit Key Dialog */}
+      <Dialog open={showForm} onOpenChange={(open) => { if (!open) { setShowForm(false); setEditTarget(null); } }}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Generate API Key</DialogTitle>
+            <DialogTitle>{editTarget ? 'Edit API Key' : 'Generate API Key'}</DialogTitle>
             <DialogDescription>
-              Create a new key for authenticating with the router proxy.
+              {editTarget ? 'Update the key name and model restrictions.' : 'Create a new key for authenticating with the router proxy.'}
             </DialogDescription>
           </DialogHeader>
 
-          {createdKey && (
+          {createdKey && !editTarget && (
             <div className="rounded-md border border-green-800 bg-green-950/50 p-4 space-y-2">
               <p className="text-sm font-medium text-green-400">
                 Key created! Copy it now — it won't be shown again.
@@ -239,10 +276,16 @@ export default function ApiKeysPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowForm(false)}>Close</Button>
-            <Button onClick={handleCreate} disabled={createApiKey.isPending}>
-              {createApiKey.isPending ? 'Generating...' : 'Generate Key'}
-            </Button>
+            <Button variant="outline" onClick={() => { setShowForm(false); setEditTarget(null); }}>Close</Button>
+            {editTarget ? (
+              <Button onClick={handleSaveEdit} disabled={updateApiKey.isPending || !newKeyName.trim()}>
+                {updateApiKey.isPending ? 'Saving...' : 'Save Changes'}
+              </Button>
+            ) : (
+              <Button onClick={handleCreate} disabled={createApiKey.isPending}>
+                {createApiKey.isPending ? 'Generating...' : 'Generate Key'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

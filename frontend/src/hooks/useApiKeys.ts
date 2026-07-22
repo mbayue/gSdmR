@@ -62,6 +62,21 @@ export function useToggleApiKey() {
   })
 }
 
+export interface ApiKeyUpdate {
+  name?: string
+  model_ids?: number[]
+  rate_limit?: number
+}
+
+export function useUpdateApiKey() {
+  const qc = useQueryClient()
+  return useMutation({
+    mutationFn: ({ id, data }: { id: number; data: ApiKeyUpdate }) =>
+      apiClient.put(`/api/keys/${id}`, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: apiKeyKeys.list() }),
+  })
+}
+
 export function useDeleteApiKey() {
   const qc = useQueryClient()
   return useMutation({
