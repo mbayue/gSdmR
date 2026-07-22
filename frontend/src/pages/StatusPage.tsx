@@ -1,7 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { Badge } from '../components/ui/badge';
-import { Separator } from '../components/ui/separator';
+import { RefreshCw, Activity } from 'lucide-react';
 
 interface HealthCheck {
   status: string;
@@ -36,64 +36,43 @@ const fetchStatus = async (): Promise<StatusData> => {
   return res.data;
 };
 
-function OverallBadge({ status }: { status: string }) {
-  if (status === 'operational') {
-    return (
-      <div className="flex items-center gap-2 rounded-lg bg-green-950/50 border border-green-800 px-4 py-2">
-        <div className="size-3 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-green-400 font-medium">All Systems Operational</span>
-      </div>
-    );
+type FilterType = 'none' | 'healthy' | 'unhealthy';
+type SortType = 'name' | 'latency' | 'uptime';
+
+function StatusBadge({ status }: { status: string }) {
+  if (status === 'healthy' || status === 'active') {
+    return <span className="inline-flex items-center rounded-full bg-green-500/20 px-2.5 py-0.5 text-xs font-medium text-green-400 border border-green-500/30">Healthy</span>;
   }
-  return (
-    <div className="flex items-center gap-2 rounded-lg bg-yellow-950/50 border border-yellow-800 px-4 py-2">
-      <div className="size-3 rounded-full bg-yellow-500 animate-pulse" />
-      <span className="text-yellow-400 font-medium">Degraded Performance</span>
-    </div>
-  );
+  if (status === 'unhealthy') {
+    return <span className="inline-flex items-center rounded-full bg-red-500/20 px-2.5 py-0.5 text-xs font-medium text-red-400 border border-red-500/30">Unhealthy</span>;
+  }
+  if (status === 'disabled' || status === 'inactive') {
+    return <span className="inline-flex items-center rounded-full bg-zinc-500/20 px-2.5 py-0.5 text-xs font-medium text-zinc-400 border border-zinc-500/30">Disabled</span>;
+  }
+  return <span className="inline-flex items-center rounded-full bg-zinc-500/20 px-2.5 py-0.5 text-xs font-medium text-zinc-400 border border-zinc-500/30">Unknown</span>;
 }
 
-function UptimeBar({ history }: { history: HealthCheck[] }) {
-  // Show bars — each bar is one health check
-  const bars = history.length > 0 ? history : Array(90).fill({ status: 'unknown' });
+function UptimeBar({ history, hoveredIndex, onHover }: { history: HealthCheck[]; hoveredIndex: number | null; onHover: (i: number | null) => void }) {
+  const bars = history.length > 0 ? history : [];
+  if (bars.length === 0) {
+    return <div className="flex gap-[1px] h-7 items-end opacity-30">
+      {Array(60).fill(0).map((_, i) => (
+        <div key={i} className="flex-1 min-w-[2px] h-full bg-zinc-700 rounded-[1px]" />
+      ))}
+    </div>;
+  }
 
   return (
-    <div className="flex gap-[1px] h-8 items-end">
+    <div className="flex gap-[1px] h-7 items-end">
       {bars.map((check, i) => {
-        let color = 'bg-zinc-700'; // unknown/no data
-        let height = '100%';
-
-        if (check.status === 'healthy') {
-          color = 'bg-green-500';
-          // Height based on latency (lower = taller)
-          const maxH = 100;
-          const minH = 40;
-          const latencyFactor = Math.min(check.latency_ms / 2000, 1);
-          height = `${maxH - (latencyFactor * (maxH - minH))}%`;
-        } else if (check.status === 'unhealthy') {
-          color = 'bg-red-500';
-          height = '100%';
-        }
-
+        const color = check.status === 'healthy' ? 'bg-green-500' : 'bg-red-500';
         return (
           <div
             key={i}
-            className="flex-1 min-w-[2px] flex items-end group relative"
-            style={{ height: '100%' }}
-          >
-            <div
-              className={`w-full rounded-[1px] ${color} transition-all hover:opacity-80`}
-              style={{ height }}
-            />
-            {check.time && (
-              <div className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 hidden group-hover:block z-10">
-                <div className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs whitespace-nowrap">
-                  <div>{check.status === 'healthy' ? '✓' : '✗'} {check.latency_ms}ms</div>
-                  <div className="text-muted-foreground">{new Date(check.time + 'Z').toLocaleTimeString()}</div>
-                </div>
-              </div>
-            )}
-          </div>
+            className={`flex-1 min-w-[2px] h-full rounded-[1px] ${color} ${hoveredIndex === i ? 'opacity-70' : 'opacity-100'} transition-opacity cursor-pointer`}
+            onMouseEnter={() => onHover(i)}
+            onMouseLeave={() => onHover(null)}
+          />
         );
       })}
     </div>
@@ -101,32 +80,77 @@ function UptimeBar({ history }: { history: HealthCheck[] }) {
 }
 
 function ProviderCard({ provider }: { provider: ProviderStatus }) {
-  const statusColor = provider.status === 'healthy' ? 'text-green-400' : provider.status === 'unhealthy' ? 'text-red-400' : 'text-zinc-400';
-  const statusLabel = provider.status === 'healthy' ? 'Operational' : provider.status === 'unhealthy' ? 'Down' : provider.status === 'disabled' ? 'Disabled' : 'Unknown';
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null);
+  const hoveredCheck = hoveredIndex !== null ? provider.history[hoveredIndex] : null;
+
+  const firstTime = provider.history.length > 0 ? provider.history[0].time : null;
+  const lastTime = provider.history.length > 0 ? provider.history[provider.history.length - 1].time : null;
 
   return (
-    <div className="space-y-2">
+    <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-4 space-y-3">
+      {/* Header */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="font-medium">{provider.name}</span>
-          {provider.avg_latency_ms > 0 && (
-            <Badge variant="secondary" className="text-xs font-normal">~{provider.avg_latency_ms}ms</Badge>
-          )}
+        <div>
+          <h3 className="font-semibold text-sm">{provider.name}</h3>
+          <p className="text-xs text-muted-foreground">{provider.avg_latency_ms > 0 ? `~${provider.avg_latency_ms}ms` : 'router'}</p>
         </div>
-        <span className={`text-sm font-medium ${statusColor}`}>{statusLabel}</span>
+        <StatusBadge status={provider.status} />
       </div>
-      <UptimeBar history={provider.history} />
-      <div className="flex justify-between text-xs text-muted-foreground">
-        <span>{provider.history.length > 0 ? new Date(provider.history[0].time + 'Z').toLocaleString() : ''}</span>
-        <span>{provider.uptime_pct}% uptime</span>
-        <span>{provider.last_check ? new Date(provider.last_check).toLocaleTimeString() : 'No checks yet'}</span>
+
+      {/* Latency label */}
+      <div className="flex justify-end">
+        <span className="text-xs text-green-400">
+          {hoveredCheck ? `${hoveredCheck.latency_ms}ms` : provider.avg_latency_ms > 0 ? `~${provider.avg_latency_ms}ms` : ''}
+        </span>
       </div>
+
+      {/* Uptime bars */}
+      <UptimeBar history={provider.history} hoveredIndex={hoveredIndex} onHover={setHoveredIndex} />
+
+      {/* Time range */}
+      <div className="flex justify-between text-[10px] text-muted-foreground">
+        <span>{firstTime ? formatTimeAgo(firstTime) : ''}</span>
+        <span>{lastTime ? formatTimeAgo(lastTime) : ''}</span>
+      </div>
+
+      {/* Hover tooltip */}
+      {hoveredCheck && (
+        <div className="text-xs border-t border-zinc-800 pt-2 space-y-1">
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">TIMESTAMP</span>
+            <span>{new Date(hoveredCheck.time + 'Z').toLocaleString()}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">RESPONSE TIME</span>
+            <span>{hoveredCheck.latency_ms}ms</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-muted-foreground">STATUS</span>
+            <span className={hoveredCheck.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
+              {hoveredCheck.status === 'healthy' ? '✓ 200' : '✗ Failed'}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+function formatTimeAgo(isoTime: string): string {
+  const diff = Date.now() - new Date(isoTime + 'Z').getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins} minutes ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} hours ago`;
+  return `${Math.floor(hours / 24)} days ago`;
+}
+
 export default function StatusPage() {
-  const { data, isLoading, error } = useQuery({
+  const [filter, setFilter] = useState<FilterType>('none');
+  const [sort, setSort] = useState<SortType>('name');
+
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
     refetchInterval: 15000,
@@ -152,41 +176,88 @@ export default function StatusPage() {
     );
   }
 
+  // Filter
+  let providers = [...data.providers];
+  if (filter === 'healthy') providers = providers.filter(p => p.status === 'healthy' || p.status === 'active');
+  if (filter === 'unhealthy') providers = providers.filter(p => p.status === 'unhealthy' || p.status === 'disabled');
+
+  // Sort
+  if (sort === 'name') providers.sort((a, b) => a.name.localeCompare(b.name));
+  if (sort === 'latency') providers.sort((a, b) => a.avg_latency_ms - b.avg_latency_ms);
+  if (sort === 'uptime') providers.sort((a, b) => b.uptime_pct - a.uptime_pct);
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-3xl px-6 py-12">
+      <div className="mx-auto max-w-5xl px-6 py-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold tracking-tight mb-4">gSdm-R</h1>
-          <OverallBadge status={data.status} />
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-3">
+            <Activity className="size-6 text-green-500" />
+            <div>
+              <h1 className="text-xl font-bold">gSdm-R</h1>
+              <p className="text-xs text-muted-foreground">System Monitoring Dashboard</p>
+            </div>
+          </div>
         </div>
 
-        {/* Stats bar */}
-        <div className="flex justify-center gap-8 mb-8 text-sm text-muted-foreground">
-          <span>Uptime: <strong className="text-foreground">{data.uptime}</strong></span>
-          <span>Requests/h: <strong className="text-foreground">{data.stats.requests_last_hour}</strong></span>
-          <span>Success: <strong className="text-foreground">{data.stats.success_rate_last_hour}%</strong></span>
-          <span>Latency: <strong className="text-foreground">{data.stats.avg_latency_ms}ms</strong></span>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold">Health Dashboard</h2>
+            <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors">
+              <RefreshCw className="size-4 text-muted-foreground" />
+            </button>
+          </div>
         </div>
 
-        <Separator className="mb-8" />
+        {/* Filter/Sort bar */}
+        <div className="flex items-center justify-between mb-6 rounded-lg border border-zinc-800 bg-zinc-900/50 px-4 py-3">
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-muted-foreground">Filter by:</span>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value as FilterType)}
+              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs"
+            >
+              <option value="none">None</option>
+              <option value="healthy">Healthy</option>
+              <option value="unhealthy">Failing</option>
+            </select>
+          </div>
+          <div className="flex items-center gap-4">
+            <span className="text-xs text-muted-foreground">Sort by:</span>
+            <select
+              value={sort}
+              onChange={(e) => setSort(e.target.value as SortType)}
+              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs"
+            >
+              <option value="name">Name</option>
+              <option value="latency">Latency</option>
+              <option value="uptime">Uptime</option>
+            </select>
+          </div>
+        </div>
 
-        {/* Provider status cards */}
-        <div className="space-y-6">
-          {data.providers.map((p) => (
+        {/* Provider grid */}
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {providers.map((p) => (
             <ProviderCard key={p.name} provider={p} />
           ))}
         </div>
 
-        {data.providers.length === 0 && (
-          <p className="text-center text-muted-foreground py-12">No providers configured yet.</p>
+        {providers.length === 0 && (
+          <div className="text-center py-12 text-muted-foreground">
+            {filter !== 'none' ? 'No providers match the current filter.' : 'No providers configured yet.'}
+          </div>
         )}
 
         {/* Footer */}
-        <Separator className="mt-8 mb-4" />
-        <p className="text-center text-xs text-muted-foreground">
-          Last updated: {new Date(data.timestamp).toLocaleString()} · Auto-refreshes every 15s
-        </p>
+        <div className="mt-8 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs text-muted-foreground">
+          <span>Auto-refreshes every 15s · Uptime: {data.uptime}</span>
+          <span>Last updated: {new Date(data.timestamp).toLocaleTimeString()}</span>
+        </div>
       </div>
     </div>
   );
