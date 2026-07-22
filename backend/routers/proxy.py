@@ -268,7 +268,7 @@ async def list_models(key_info: dict = Depends(validate_api_key)):
             "id": row["name"],
             "object": "model",
             "created": int(time.time()),
-            "owned_by": "router",
+            "owned_by": "gsdm-r",
             "supported_endpoint_types": ["openai", "anthropic", "responses"],
         })
 
