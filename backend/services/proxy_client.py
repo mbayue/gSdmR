@@ -86,7 +86,7 @@ async def _forward_non_streaming(
     provider_name: str,
 ) -> tuple[bool, Any]:
     """Forward a non-streaming request and return classified result."""
-    async with httpx.AsyncClient(timeout=timeout) as client:
+    async with httpx.AsyncClient(timeout=timeout, verify=False) as client:
         response = await client.post(url, json=request_body, headers=headers)
         status = response.status_code
 
@@ -125,7 +125,7 @@ async def _forward_streaming(
     On error, reads the body and returns a failure tuple.
     """
     # Create a persistent client for the streaming connection
-    client = httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=10.0))
+    client = httpx.AsyncClient(timeout=httpx.Timeout(timeout, connect=10.0), verify=False)
 
     try:
         request = client.build_request("POST", url, json=request_body, headers=headers)
