@@ -159,7 +159,7 @@ export default function StatusPage() {
   const [sort, setSort] = useState<SortType>('name');
   const [refreshInterval, setRefreshInterval] = useState(300000); // 5min default
 
-  const { data, isLoading, error, refetch } = useQuery({
+  const { data, isLoading, error, refetch, isFetching } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
     refetchInterval: refreshInterval,
@@ -207,8 +207,8 @@ export default function StatusPage() {
             </div>
             <span className="text-sm text-muted-foreground">Status</span>
           </div>
-          <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors">
-            <RefreshCw className="size-4 text-muted-foreground" />
+          <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors" title="Refresh now">
+            <RefreshCw className={`size-4 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} />
           </button>
         </div>
       </header>
@@ -263,7 +263,9 @@ export default function StatusPage() {
         {/* Footer */}
         <div className="mt-8 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <RefreshCw className="size-3" />
+            <button onClick={() => refetch()} className="p-1 rounded hover:bg-zinc-800 transition-colors" title="Refresh now">
+              <RefreshCw className={`size-3 ${isFetching ? 'animate-spin' : ''}`} />
+            </button>
             <select
               value={refreshInterval}
               onChange={(e) => setRefreshInterval(Number(e.target.value))}
