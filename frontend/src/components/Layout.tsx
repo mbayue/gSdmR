@@ -11,8 +11,10 @@ export default function Layout() {
   const { username, logout } = useAuth();
 
   const handleExport = async () => {
+    const password = prompt('Enter admin password to confirm export:');
+    if (!password) return;
     try {
-      const res = await apiClient.get('/api/backup/export');
+      const res = await apiClient.get(`/api/backup/export?password=${encodeURIComponent(password)}`);
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -22,7 +24,7 @@ export default function Layout() {
       URL.revokeObjectURL(url);
       toast.success('Configuration exported');
     } catch {
-      toast.error('Export failed');
+      toast.error('Export failed — wrong password or server error');
     }
   };
 

@@ -208,7 +208,6 @@ export default function ModelForm({ model, onClose }: Props) {
                   <ProviderModelOptions providerId={mapping.provider_id} />
                 </SelectContent>
               </Select>
-              </Select>
 
               <Input
                 type="number"
