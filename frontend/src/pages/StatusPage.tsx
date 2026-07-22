@@ -105,33 +105,41 @@ function ProviderCard({ provider }: { provider: ProviderStatus }) {
       </div>
 
       {/* Uptime bars */}
-      <UptimeBar history={provider.history} hoveredIndex={hoveredIndex} onHover={setHoveredIndex} />
+      <div className="relative">
+        <UptimeBar history={provider.history} hoveredIndex={hoveredIndex} onHover={setHoveredIndex} />
+
+        {/* Tooltip */}
+        {hoveredCheck && hoveredIndex !== null && (
+          <div
+            className="absolute z-20 bottom-full mb-2 bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-xs shadow-lg pointer-events-none whitespace-nowrap"
+            style={{
+              left: `${(hoveredIndex / Math.max(provider.history.length - 1, 1)) * 100}%`,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">TIMESTAMP</span>
+              <span>{new Date(hoveredCheck.time + 'Z').toLocaleString()}</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">RESPONSE TIME</span>
+              <span>{hoveredCheck.latency_ms}ms</span>
+            </div>
+            <div className="flex justify-between gap-4">
+              <span className="text-muted-foreground">STATUS</span>
+              <span className={hoveredCheck.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
+                {hoveredCheck.status === 'healthy' ? '✓ 200' : '✗ Failed'}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {/* Time range */}
       <div className="flex justify-between text-[10px] text-muted-foreground">
         <span>{firstTime ? formatTimeAgo(firstTime) : ''}</span>
-        <span>{lastTime ? formatTimeAgo(lastTime) : ''}</span>
+        <span>{lastTime ? formatTimeAgo(lastTime) : 'just now'}</span>
       </div>
-
-      {/* Hover tooltip */}
-      {hoveredCheck && (
-        <div className="text-xs border-t border-zinc-800 pt-2 space-y-1">
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">TIMESTAMP</span>
-            <span>{new Date(hoveredCheck.time + 'Z').toLocaleString()}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">RESPONSE TIME</span>
-            <span>{hoveredCheck.latency_ms}ms</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-muted-foreground">STATUS</span>
-            <span className={hoveredCheck.status === 'healthy' ? 'text-green-400' : 'text-red-400'}>
-              {hoveredCheck.status === 'healthy' ? '✓ 200' : '✗ Failed'}
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
