@@ -105,7 +105,7 @@ All config via environment variables (or `backend/.env`):
 # Proxy endpoints — use API key
 curl -H "Authorization: Bearer sk-gsdm-your-key" \
   http://localhost:8000/v1/chat/completions \
-  -d '{"model": "gpt", "messages": [{"role": "user", "content": "hi"}]}'
+  -d '{"model": "deepseek-v4-flash", "messages": [{"role": "user", "content": "hi"}]}'
 
 # Management endpoints — use JWT
 TOKEN=$(curl -s -X POST http://localhost:8000/api/auth/login \
@@ -145,7 +145,7 @@ A model can have multiple aliases that all route to the same provider configurat
 
 ```json
 {
-  "name": "gpt-4",
+  "name": "deepseek-v4-flash",
   "aliases": ["gpt4", "gpt-4-latest", "best-model"],
   "providers": [...]
 }
@@ -207,3 +207,4 @@ Available at `http://localhost:8000/docs` (shows public proxy endpoints only).
 ## License
 
 MIT
+

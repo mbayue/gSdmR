@@ -178,6 +178,7 @@ export default function UsagePage() {
               <TableRow>
                 <TableHead>Time</TableHead>
                 <TableHead>Model</TableHead>
+                <TableHead>Provider</TableHead>
                 <TableHead>Endpoint</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Latency</TableHead>
@@ -191,6 +192,7 @@ export default function UsagePage() {
                     {new Date(r.time + 'Z').toLocaleTimeString()}
                   </TableCell>
                   <TableCell className="font-mono text-xs">{r.model}</TableCell>
+                  <TableCell className="text-xs">{r.provider || '—'}</TableCell>
                   <TableCell className="text-xs">{r.endpoint}</TableCell>
                   <TableCell>
                     <Badge variant={r.status < 300 ? 'default' : 'destructive'} className="text-xs">
@@ -203,7 +205,7 @@ export default function UsagePage() {
               ))}
               {recent.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="h-16 text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
                     No requests recorded yet.
                   </TableCell>
                 </TableRow>
