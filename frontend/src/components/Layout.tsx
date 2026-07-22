@@ -1,20 +1,27 @@
+import { useState } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { Download, Upload, LogOut, Server } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../hooks/useAuth';
 import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
 import { Separator } from './ui/separator';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
 import apiClient from '../api/client';
 import { cn } from '@/lib/utils';
 
 export default function Layout() {
   const { username, logout } = useAuth();
+  const [showExportDialog, setShowExportDialog] = useState(false);
+  const [exportPassword, setExportPassword] = useState('');
+  const [exporting, setExporting] = useState(false);
 
   const handleExport = async () => {
-    const password = prompt('Enter admin password to confirm export:');
-    if (!password) return;
+    if (!exportPassword) return;
+    setExporting(true);
     try {
-      const res = await apiClient.get(`/api/backup/export?password=${encodeURIComponent(password)}`);
+      const res = await apiClient.get(`/api/backup/export?password=${encodeURIComponent(exportPassword)}`);
       const blob = new Blob([JSON.stringify(res.data, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -23,8 +30,12 @@ export default function Layout() {
       a.click();
       URL.revokeObjectURL(url);
       toast.success('Configuration exported');
+      setShowExportDialog(false);
+      setExportPassword('');
     } catch {
       toast.error('Export failed — wrong password or server error');
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -119,7 +130,7 @@ export default function Layout() {
             </nav>
           </div>
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleExport}>
+            <Button variant="ghost" size="sm" onClick={() => setShowExportDialog(true)}>
               <Download className="h-4 w-4" />
               Export
             </Button>
@@ -138,6 +149,38 @@ export default function Layout() {
       <main className="mx-auto max-w-5xl px-6 py-8">
         <Outlet />
       </main>
+
+      {/* Export Password Dialog */}
+      <Dialog open={showExportDialog} onOpenChange={(open) => { if (!open) { setShowExportDialog(false); setExportPassword(''); } }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Export Configuration</DialogTitle>
+            <DialogDescription>
+              Enter your admin password to download the backup file. This includes provider API keys.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="export-password">Password</Label>
+            <Input
+              id="export-password"
+              type="password"
+              value={exportPassword}
+              onChange={(e) => setExportPassword(e.target.value)}
+              placeholder="Enter admin password"
+              onKeyDown={(e) => { if (e.key === 'Enter') handleExport(); }}
+              autoFocus
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowExportDialog(false); setExportPassword(''); }}>
+              Cancel
+            </Button>
+            <Button onClick={handleExport} disabled={!exportPassword || exporting}>
+              {exporting ? 'Exporting...' : 'Export'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
