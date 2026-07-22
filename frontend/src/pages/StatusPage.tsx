@@ -159,7 +159,7 @@ export default function StatusPage() {
   const [sort, setSort] = useState<SortType>('name');
   const [refreshInterval, setRefreshInterval] = useState(300000); // 5min default
 
-  const { data, isLoading, error, refetch, isFetching } = useQuery({
+  const { data, isLoading, isFetching, error, refetch } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
     refetchInterval: refreshInterval,
@@ -205,18 +205,20 @@ export default function StatusPage() {
               <Server className="size-5 text-blue-500" />
               <span className="text-lg font-bold tracking-tight">gSdm-R</span>
             </div>
-            <span className="text-sm text-muted-foreground">Status</span>
+            <span className="text-sm text-muted-foreground">System Monitoring Dashboard</span>
           </div>
-          <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors" title="Refresh now">
-            <RefreshCw className={`size-4 text-muted-foreground ${isFetching ? 'animate-spin' : ''}`} />
-          </button>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="mb-6">
-          <h2 className="text-2xl font-bold tracking-tight">Health Dashboard</h2>
-          <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-2xl font-bold tracking-tight">Health Dashboard</h2>
+            <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
+          </div>
+          <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors">
+            <RefreshCw className={`size-4 text-muted-foreground ${isLoading || isFetching ? 'animate-spin' : ''}`} />
+          </button>
         </div>
 
         {/* Filter/Sort bar */}
@@ -263,9 +265,7 @@ export default function StatusPage() {
         {/* Footer */}
         <div className="mt-8 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs text-muted-foreground">
           <div className="flex items-center gap-2">
-            <button onClick={() => refetch()} className="p-1 rounded hover:bg-zinc-800 transition-colors" title="Refresh now">
-              <RefreshCw className={`size-3 ${isFetching ? 'animate-spin' : ''}`} />
-            </button>
+            <RefreshCw className="size-3" />
             <select
               value={refreshInterval}
               onChange={(e) => setRefreshInterval(Number(e.target.value))}
