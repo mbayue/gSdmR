@@ -149,11 +149,12 @@ function formatTimeAgo(isoTime: string): string {
 export default function StatusPage() {
   const [filter, setFilter] = useState<FilterType>('none');
   const [sort, setSort] = useState<SortType>('name');
+  const [refreshInterval, setRefreshInterval] = useState(300000); // 5min default
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
-    refetchInterval: 15000,
+    refetchInterval: refreshInterval,
   });
 
   if (isLoading) {
@@ -255,8 +256,22 @@ export default function StatusPage() {
 
         {/* Footer */}
         <div className="mt-8 pt-4 border-t border-zinc-800 flex items-center justify-between text-xs text-muted-foreground">
-          <span>Auto-refreshes every 15s · Uptime: {data.uptime}</span>
-          <span>Last updated: {new Date(data.timestamp).toLocaleTimeString()}</span>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="size-3" />
+            <select
+              value={refreshInterval}
+              onChange={(e) => setRefreshInterval(Number(e.target.value))}
+              className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-xs"
+            >
+              <option value={10000}>10s</option>
+              <option value={30000}>30s</option>
+              <option value={60000}>1m</option>
+              <option value={120000}>2m</option>
+              <option value={300000}>5m</option>
+              <option value={600000}>10m</option>
+            </select>
+          </div>
+          <span>Uptime: {data.uptime} · Last updated: {new Date(data.timestamp).toLocaleTimeString()}</span>
         </div>
       </div>
     </div>
