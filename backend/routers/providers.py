@@ -155,6 +155,9 @@ async def list_provider_models(
     base_url = row["base_url"].rstrip("/")
     api_key = row["api_key"]
 
+    if not api_key:
+        return {"error": "Provider API key not configured", "models": []}
+
     try:
         async with httpx.AsyncClient(timeout=15.0) as client:
             response = await client.get(
