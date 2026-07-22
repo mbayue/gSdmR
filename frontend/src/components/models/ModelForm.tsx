@@ -1,9 +1,8 @@
-import { useState, useEffect, type FormEvent } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
-import apiClient from '../../api/client';
 import { useCreateModel, useUpdateModel } from '../../hooks/useModels';
-import { useProviders } from '../../hooks/useProviders';
+import { useProviders, useProviderModels } from '../../hooks/useProviders';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -15,8 +14,39 @@ interface Props {
   onClose: () => void;
 }
 
-interface AvailableModel {
-  id: string;
+function ProviderModelSelect({ providerId, value, onChange }: { providerId: number; value: string; onChange: (v: string) => void }) {
+  const { data: models = [], isLoading } = useProviderModels(providerId);
+
+  return (
+    <select
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm"
+      disabled={providerId <= 0}
+    >
+      <option value="">
+        {providerId <= 0 ? 'Select provider first' : isLoading ? 'Loading...' : 'Select model...'}
+      </option>
+      {models.map((m: { id: string }) => (
+        <option key={m.id} value={m.id}>{m.id}</option>
+      ))}
+    </select>
+  );
+}
+
+function ProviderModelOptions({ providerId }: { providerId: number }) {
+  const { data: models = [], isLoading } = useProviderModels(providerId);
+
+  if (isLoading) return <SelectItem value="__loading" disabled>Loading...</SelectItem>;
+  if (models.length === 0) return <SelectItem value="__empty" disabled>No models available</SelectItem>;
+
+  return (
+    <>
+      {models.map((m: { id: string }) => (
+        <SelectItem key={m.id} value={m.id}>{m.id}</SelectItem>
+      ))}
+    </>
+  );
 }
 
 export default function ModelForm({ model, onClose }: Props) {
@@ -25,34 +55,11 @@ export default function ModelForm({ model, onClose }: Props) {
   const [mappings, setMappings] = useState<ModelProviderMapping[]>(
     model?.providers ?? [{ provider_id: 0, provider_model: '', priority: 1 }]
   );
-  const [providerModels, setProviderModels] = useState<Record<number, AvailableModel[]>>({});
-  const [loadingModels, setLoadingModels] = useState<Record<number, boolean>>({});
 
   const { data: providers = [] } = useProviders();
   const createModel = useCreateModel();
   const updateModel = useUpdateModel();
   const isEditing = !!model;
-
-  const fetchModelsForProvider = async (providerId: number) => {
-    if (providerId <= 0 || providerModels[providerId]) return;
-    setLoadingModels((prev) => ({ ...prev, [providerId]: true }));
-    try {
-      const res = await apiClient.get(`/api/providers/${providerId}/models`);
-      const data = res.data;
-      const models = Array.isArray(data) ? data : data.models ?? [];
-      setProviderModels((prev) => ({ ...prev, [providerId]: models }));
-    } catch {
-      setProviderModels((prev) => ({ ...prev, [providerId]: [] }));
-    } finally {
-      setLoadingModels((prev) => ({ ...prev, [providerId]: false }));
-    }
-  };
-
-  useEffect(() => {
-    for (const m of mappings) {
-      if (m.provider_id > 0) fetchModelsForProvider(m.provider_id);
-    }
-  }, []);
 
   const addMapping = () => {
     const nextPriority = mappings.length > 0 ? Math.max(...mappings.map((m) => m.priority)) + 1 : 1;
@@ -193,17 +200,14 @@ export default function ModelForm({ model, onClose }: Props) {
                     placeholder={
                       mapping.provider_id <= 0
                         ? 'Select provider first'
-                        : loadingModels[mapping.provider_id]
-                          ? 'Loading...'
-                          : 'Select model...'
+                        : 'Select model...'
                     }
                   />
                 </SelectTrigger>
                 <SelectContent>
-                  {(providerModels[mapping.provider_id] ?? []).map((m) => (
-                    <SelectItem key={m.id} value={m.id}>{m.id}</SelectItem>
-                  ))}
+                  <ProviderModelOptions providerId={mapping.provider_id} />
                 </SelectContent>
+              </Select>
               </Select>
 
               <Input
