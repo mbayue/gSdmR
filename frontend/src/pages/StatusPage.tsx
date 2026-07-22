@@ -146,10 +146,14 @@ function ProviderCard({ provider }: { provider: ProviderStatus }) {
 
 function formatTimeAgo(isoTime: string): string {
   const diff = Date.now() - new Date(isoTime + 'Z').getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return 'just now';
+  const secs = Math.floor(diff / 1000);
+  if (secs < 10) return 'just now';
+  if (secs < 60) return `${secs} seconds ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins === 1) return '1 minute ago';
   if (mins < 60) return `${mins} minutes ago`;
   const hours = Math.floor(mins / 60);
+  if (hours === 1) return '1 hour ago';
   if (hours < 24) return `${hours} hours ago`;
   return `${Math.floor(hours / 24)} days ago`;
 }
@@ -159,7 +163,7 @@ export default function StatusPage() {
   const [sort, setSort] = useState<SortType>('name');
   const [refreshInterval, setRefreshInterval] = useState(300000); // 5min default
 
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
+  const { data, isLoading, error } = useQuery({
     queryKey: ['status'],
     queryFn: fetchStatus,
     refetchInterval: refreshInterval,
@@ -205,20 +209,15 @@ export default function StatusPage() {
               <Server className="size-5 text-blue-500" />
               <span className="text-lg font-bold tracking-tight">gSdm-R</span>
             </div>
-            <span className="text-sm text-muted-foreground">System Monitoring Dashboard</span>
+            <span className="text-sm text-muted-foreground">Status</span>
           </div>
         </div>
       </header>
 
       <div className="mx-auto max-w-5xl px-6 py-8">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold tracking-tight">Health Dashboard</h2>
-            <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
-          </div>
-          <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors">
-            <RefreshCw className={`size-4 text-muted-foreground ${isLoading || isFetching ? 'animate-spin' : ''}`} />
-          </button>
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold tracking-tight">Health Dashboard</h2>
+          <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
         </div>
 
         {/* Filter/Sort bar */}
