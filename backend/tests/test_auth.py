@@ -169,3 +169,51 @@ class TestGetMe:
         )
         assert response.status_code == 200
         assert response.json() == {"username": "admin"}
+
+
+@pytest.mark.asyncio
+class TestChangePassword:
+    """Tests for PUT /api/auth/password."""
+
+    async def test_change_password_success(self, client, auth_headers):
+        """Changing password with correct current password succeeds."""
+        response = await client.put(
+            "/api/auth/password",
+            headers=auth_headers,
+            json={"current_password": "admin", "new_password": "newpass123"},
+        )
+        assert response.status_code == 200
+        assert response.json()["message"] == "Password updated successfully"
+
+        # Verify new password works for login
+        login_resp = await client.post(
+            "/api/auth/login",
+            json={"username": "admin", "password": "newpass123"},
+        )
+        assert login_resp.status_code == 200
+
+    async def test_change_password_wrong_current(self, client, auth_headers):
+        """Changing password with wrong current password returns 401."""
+        response = await client.put(
+            "/api/auth/password",
+            headers=auth_headers,
+            json={"current_password": "wrongpass", "new_password": "newpass123"},
+        )
+        assert response.status_code == 401
+
+    async def test_change_password_too_short(self, client, auth_headers):
+        """New password shorter than 4 chars returns 422."""
+        response = await client.put(
+            "/api/auth/password",
+            headers=auth_headers,
+            json={"current_password": "admin", "new_password": "ab"},
+        )
+        assert response.status_code == 422
+
+    async def test_change_password_requires_auth(self, client):
+        """PUT /api/auth/password without auth returns 401."""
+        response = await client.put(
+            "/api/auth/password",
+            json={"current_password": "admin", "new_password": "newpass"},
+        )
+        assert response.status_code == 401
