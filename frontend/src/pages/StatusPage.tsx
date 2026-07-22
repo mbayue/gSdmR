@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import axios from 'axios';
-import { RefreshCw, Activity } from 'lucide-react';
+import { RefreshCw, Server } from 'lucide-react';
 
 interface HealthCheck {
   status: string;
@@ -197,28 +197,26 @@ export default function StatusPage() {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-5xl px-6 py-8">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-2">
-          <div className="flex items-center gap-3">
-            <Activity className="size-6 text-green-500" />
-            <div>
-              <h1 className="text-xl font-bold">gSdm-R</h1>
-              <p className="text-xs text-muted-foreground">System Monitoring Dashboard</p>
+      {/* Sticky header matching main app */}
+      <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <div className="mx-auto flex h-14 max-w-5xl items-center justify-between px-6">
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Server className="size-5 text-blue-500" />
+              <span className="text-lg font-bold tracking-tight">gSdm-R</span>
             </div>
+            <span className="text-sm text-muted-foreground">Status</span>
           </div>
+          <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors">
+            <RefreshCw className="size-4 text-muted-foreground" />
+          </button>
         </div>
+      </header>
 
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="text-2xl font-bold">Health Dashboard</h2>
-            <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => refetch()} className="p-2 rounded-md hover:bg-zinc-800 transition-colors">
-              <RefreshCw className="size-4 text-muted-foreground" />
-            </button>
-          </div>
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        <div className="mb-6">
+          <h2 className="text-2xl font-bold tracking-tight">Health Dashboard</h2>
+          <p className="text-sm text-muted-foreground">Monitor the health of your providers in real-time</p>
         </div>
 
         {/* Filter/Sort bar */}
