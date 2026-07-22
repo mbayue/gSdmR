@@ -98,38 +98,33 @@ class TestCheckProvider:
         """check_provider returns True when provider responds with 200."""
         mock_response = httpx.Response(status_code=200, json={"data": []})
         with patch("httpx.AsyncClient.get", return_value=mock_response):
-            result = await check_provider(1, "test", "https://api.test.com/v1", "sk-key")
-            assert result is True
+            result, latency = await check_provider(1, "test", "https://api.test.com/v1", "sk-key") assert result is True assert latency >= 0
 
     @pytest.mark.asyncio
     async def test_returns_true_for_4xx_non_server_error(self):
         """check_provider returns True for 4xx (provider is alive, just rejecting)."""
         mock_response = httpx.Response(status_code=401, json={"error": "unauthorized"})
         with patch("httpx.AsyncClient.get", return_value=mock_response):
-            result = await check_provider(1, "test", "https://api.test.com/v1", "sk-key")
-            assert result is True
+            result, latency = await check_provider(1, "test", "https://api.test.com/v1", "sk-key") assert result is True assert latency >= 0
 
     @pytest.mark.asyncio
     async def test_returns_false_for_server_error(self):
         """check_provider returns False for 5xx server errors."""
         mock_response = httpx.Response(status_code=500, json={"error": "server error"})
         with patch("httpx.AsyncClient.get", return_value=mock_response):
-            result = await check_provider(1, "test", "https://api.test.com/v1", "sk-key")
-            assert result is False
+            result, latency = await check_provider(1, "test", "https://api.test.com/v1", "sk-key") assert result is False
 
     @pytest.mark.asyncio
     async def test_returns_false_on_timeout(self):
         """check_provider returns False when provider times out."""
         with patch("httpx.AsyncClient.get", side_effect=httpx.TimeoutException("timed out")):
-            result = await check_provider(1, "test", "https://api.test.com/v1", "sk-key")
-            assert result is False
+            result, latency = await check_provider(1, "test", "https://api.test.com/v1", "sk-key") assert result is False
 
     @pytest.mark.asyncio
     async def test_returns_false_on_connection_error(self):
         """check_provider returns False on connection error."""
         with patch("httpx.AsyncClient.get", side_effect=httpx.ConnectError("connection refused")):
-            result = await check_provider(1, "test", "https://api.test.com/v1", "sk-key")
-            assert result is False
+            result, latency = await check_provider(1, "test", "https://api.test.com/v1", "sk-key") assert result is False
 
     @pytest.mark.asyncio
     async def test_constructs_correct_url(self):
@@ -282,3 +277,5 @@ class TestGetHealthStatus:
         assert entry["status"] == "unhealthy"
         assert entry["consecutive_failures"] == 1
         assert entry["last_check"] == 123456.0
+
+
