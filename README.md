@@ -8,6 +8,8 @@ OpenAI / Anthropic compatible API router with priority-based provider fallback, 
 - Routes to multiple backend providers with configurable load balancing (priority, round-robin, weighted-random)
 - Automatic failover when a provider is down
 - Per-key rate limiting and model access restrictions
+- Playground for testing models directly against providers or through routing
+- Deactivate broken provider+model combos to skip them during routing
 - Dashboard for managing providers, models, API keys, and usage stats
 
 ## Quick Start
@@ -96,6 +98,11 @@ All config via environment variables (or `backend/.env`):
 | `GET` | `/api/usage` | Usage statistics |
 | `GET` | `/api/backup/export` | Export config as JSON |
 | `POST` | `/api/backup/import` | Import config from JSON |
+| `GET` | `/api/playground/disabled-models` | List disabled provider models |
+| `POST` | `/api/playground/disabled-models` | Deactivate a provider+model |
+| `DELETE` | `/api/playground/disabled-models` | Re-activate a provider+model |
+| `POST` | `/api/playground/test` | Direct test provider+model |
+| `POST` | `/api/playground/route-test` | Test model through routing |
 | `GET` | `/api/status` | Public status page data (no auth) |
 | `GET` | `/health` | Health check (no auth) |
 
@@ -159,7 +166,7 @@ Each API key can optionally be restricted to specific models. Keys with no model
 
 ### Export / Import
 
-Back up and restore your entire configuration (providers, models, API keys):
+Back up and restore your entire configuration (providers, models, API keys, disabled provider models):
 
 ```bash
 # Export (requires password confirmation)
@@ -169,6 +176,16 @@ curl -H "Authorization: Bearer $TOKEN" "http://localhost:8000/api/backup/export?
 curl -H "Authorization: Bearer $TOKEN" -F "file=@backup.json" \
   http://localhost:8000/api/backup/import
 ```
+
+### Playground
+
+Test models directly against providers or through the routing layer:
+
+- **Direct Test** — send a fixed prompt to any provider+model combo, see latency and response
+- **Route Test** — test configured model aliases through the full routing logic with fallback
+- **Deactivate/Activate** — disable broken provider+model combos so routing skips them
+- Deactivated models are grayed out in the Playground and Model config dropdowns
+- Export/Import includes disabled model state
 
 ### Status Page
 

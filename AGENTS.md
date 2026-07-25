@@ -55,6 +55,7 @@ Dashboard → [JWT Auth] → [CRUD APIs] → SQLite DB
 3. **Proxy is transparent** — forwards body unchanged except swapping `model` field
 4. **Health checks** — background task auto-disables bad providers
 5. **Rate limiting** — in-memory sliding window, per-key configurable
+6. **Disabled provider models** — specific provider+model combos can be deactivated via Playground; routing automatically skips them
 
 ## When Modifying Code
 
