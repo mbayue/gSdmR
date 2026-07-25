@@ -3,6 +3,7 @@ import { Plus, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { useCreateModel, useUpdateModel } from '../../hooks/useModels';
 import { useProviders, useProviderModels } from '../../hooks/useProviders';
+import { useDisabledModels } from '../../hooks/usePlayground';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
@@ -16,15 +17,21 @@ interface Props {
 
 function ProviderModelOptions({ providerId }: { providerId: number }) {
   const { data: models = [], isLoading } = useProviderModels(providerId);
+  const { data: disabledModels = [] } = useDisabledModels();
 
   if (isLoading) return <SelectItem value="__loading" disabled>Loading...</SelectItem>;
   if (models.length === 0) return <SelectItem value="__empty" disabled>No models available</SelectItem>;
 
   return (
     <>
-      {models.map((m: { id: string }) => (
-        <SelectItem key={m.id} value={m.id}>{m.id}</SelectItem>
-      ))}
+      {models.map((m: { id: string }) => {
+        const isDeactivated = disabledModels.some((d) => d.provider_id === providerId && d.model_name === m.id);
+        return (
+          <SelectItem key={m.id} value={m.id} className={isDeactivated ? 'text-muted-foreground' : ''}>
+            {m.id}{isDeactivated ? ' (deactivated)' : ''}
+          </SelectItem>
+        );
+      })}
     </>
   );
 }

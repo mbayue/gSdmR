@@ -14,6 +14,7 @@ const ModelsPage = lazy(() => import('./pages/ModelsPage'));
 const ApiKeysPage = lazy(() => import('./pages/ApiKeysPage'));
 const UsagePage = lazy(() => import('./pages/UsagePage'));
 const StatusPage = lazy(() => import('./pages/StatusPage'));
+const PlaygroundPage = lazy(() => import('./pages/PlaygroundPage'));
 
 function App() {
   return (
@@ -35,6 +36,7 @@ function App() {
                 <Route path="models" element={<ModelsPage />} />
                 <Route path="keys" element={<ApiKeysPage />} />
                 <Route path="usage" element={<UsagePage />} />
+                <Route path="playground" element={<PlaygroundPage />} />
               </Route>
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

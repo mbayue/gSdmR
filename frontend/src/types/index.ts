@@ -58,3 +58,20 @@ export interface TokenResponse {
   access_token: string;
   token_type: string;
 }
+
+export interface PlaygroundTestResult {
+  success: boolean;
+  latency_ms: number;
+  response_text: string | null;
+  error: string | null;
+  provider_name: string;
+  model_name: string;
+}
+
+export interface DisabledProviderModel {
+  id: number;
+  provider_id: number;
+  provider_name: string;
+  model_name: string;
+  created_at: string;
+}

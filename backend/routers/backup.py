@@ -43,7 +43,7 @@ async def export_all(username: str = Depends(get_current_user), password: str = 
     ]
 
     # Export models with provider mappings
-    cursor = await db.execute("SELECT id, name FROM models ORDER BY id")
+    cursor = await db.execute("SELECT id, name, load_balance FROM models ORDER BY id")
     model_rows = await cursor.fetchall()
     models = []
     for model_row in model_rows:
@@ -60,6 +60,7 @@ async def export_all(username: str = Depends(get_current_user), password: str = 
         mapping_rows = await cursor.fetchall()
         models.append({
             "name": model_row["name"],
+            "load_balance": model_row["load_balance"],
             "providers": [
                 {
                     "provider_name": m["provider_name"],
@@ -91,11 +92,27 @@ async def export_all(username: str = Depends(get_current_user), password: str = 
             "allowed_models": model_names,  # empty = all
         })
 
+    # Export disabled provider models
+    cursor = await db.execute(
+        """
+        SELECT p.name AS provider_name, dpm.model_name
+        FROM disabled_provider_models dpm
+        JOIN providers p ON p.id = dpm.provider_id
+        ORDER BY p.name, dpm.model_name
+        """
+    )
+    disabled_rows = await cursor.fetchall()
+    disabled_models = [
+        {"provider_name": row["provider_name"], "model_name": row["model_name"]}
+        for row in disabled_rows
+    ]
+
     return {
         "version": "1.0",
         "providers": providers,
         "models": models,
         "api_keys": api_keys,
+        "disabled_provider_models": disabled_models,
     }
 
 
@@ -150,15 +167,16 @@ async def import_all(username: str = Depends(get_current_user), file: UploadFile
     for m in data.get("models", []):
         cursor = await db.execute("SELECT id FROM models WHERE name = ?", (m["name"],))
         existing = await cursor.fetchone()
+        load_balance = m.get("load_balance", "priority")
         if existing:
             model_id = existing["id"]
             # Replace mappings
             await db.execute("DELETE FROM model_providers WHERE model_id = ?", (model_id,))
             await db.execute(
-                "UPDATE models SET updated_at = datetime('now') WHERE id = ?", (model_id,)
+                "UPDATE models SET load_balance = ?, updated_at = datetime('now') WHERE id = ?", (load_balance, model_id)
             )
         else:
-            cursor = await db.execute("INSERT INTO models (name) VALUES (?)", (m["name"],))
+            cursor = await db.execute("INSERT INTO models (name, load_balance) VALUES (?, ?)", (m["name"], load_balance))
             model_id = cursor.lastrowid
 
         for mapping in m.get("providers", []):
@@ -205,6 +223,18 @@ async def import_all(username: str = Depends(get_current_user), file: UploadFile
                     (key_id, model_row["id"]),
                 )
         stats["api_keys"] += 1
+
+    await db.commit()
+
+    # Import disabled provider models
+    for d in data.get("disabled_provider_models", []):
+        cursor = await db.execute("SELECT id FROM providers WHERE name = ?", (d["provider_name"],))
+        provider_row = await cursor.fetchone()
+        if provider_row:
+            await db.execute(
+                "INSERT OR IGNORE INTO disabled_provider_models (provider_id, model_name) VALUES (?, ?)",
+                (provider_row["id"], d["model_name"]),
+            )
 
     await db.commit()
 

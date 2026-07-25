@@ -117,6 +117,7 @@ from routers.api_keys import router as api_keys_router
 from routers.backup import router as backup_router
 from routers.usage import router as usage_router
 from routers.status import router as status_router
+from routers.playground import router as playground_router
 
 app.include_router(proxy_router)
 app.include_router(status_router)
@@ -126,6 +127,7 @@ app.include_router(models_router, include_in_schema=False)
 app.include_router(api_keys_router, include_in_schema=False)
 app.include_router(backup_router, include_in_schema=False)
 app.include_router(usage_router, include_in_schema=False)
+app.include_router(playground_router, include_in_schema=False)
 
 
 @app.get("/health", include_in_schema=False)

@@ -111,6 +111,15 @@ CREATE TABLE IF NOT EXISTS health_checks (
 
 CREATE INDEX IF NOT EXISTS idx_health_checks_provider ON health_checks(provider_id);
 CREATE INDEX IF NOT EXISTS idx_health_checks_created ON health_checks(created_at);
+
+CREATE TABLE IF NOT EXISTS disabled_provider_models (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    provider_id INTEGER NOT NULL,
+    model_name TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+    UNIQUE(provider_id, model_name)
+);
 """
 
 # Default providers to seed on first run (API keys configured via dashboard)
@@ -193,6 +202,39 @@ async def init_db() -> None:
         await db.commit()
     except Exception:
         pass  # Table already exists
+
+    try:
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS disabled_provider_models (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id INTEGER NOT NULL,
+                model_name TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+                UNIQUE(provider_id, model_name)
+            )
+        """)
+        await db.commit()
+    except Exception:
+        pass  # Table already exists
+
+    # Fix: if disabled_provider_models has old schema (no model_name column), recreate it
+    try:
+        await db.execute("SELECT model_name FROM disabled_provider_models LIMIT 1")
+    except Exception:
+        # Old schema detected — drop and recreate
+        await db.execute("DROP TABLE IF EXISTS disabled_provider_models")
+        await db.execute("""
+            CREATE TABLE disabled_provider_models (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                provider_id INTEGER NOT NULL,
+                model_name TEXT NOT NULL,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                FOREIGN KEY (provider_id) REFERENCES providers(id) ON DELETE CASCADE,
+                UNIQUE(provider_id, model_name)
+            )
+        """)
+        await db.commit()
 
     # Seed default providers
     for provider in DEFAULT_PROVIDERS:

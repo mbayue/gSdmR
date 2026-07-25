@@ -54,8 +54,11 @@ async def get_providers_for_model(model_name: str) -> tuple[list[dict], str]:
         SELECT p.id, p.name, p.base_url, p.api_key, mp.provider_model, mp.priority
         FROM model_providers mp
         JOIN providers p ON p.id = mp.provider_id
+        LEFT JOIN disabled_provider_models dpm
+            ON dpm.provider_id = mp.provider_id AND dpm.model_name = mp.provider_model
         WHERE mp.model_id = ?
         AND p.is_active = 1
+        AND dpm.id IS NULL
         ORDER BY mp.priority ASC
         """,
         (model_row["id"],),
