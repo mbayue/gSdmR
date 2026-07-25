@@ -69,7 +69,7 @@ function DirectTestPanel() {
   return (
     <div className="space-y-4">
       {/* Test button */}
-      <div className="flex items-center justify-end gap-2">
+      <div className="flex items-center justify-end gap-2 h-9">
         {selectedProvider && selectedModel && <span className="text-xs text-muted-foreground">Testing <span className="font-mono">{selectedModel}</span></span>}
         <Button onClick={handleTest} disabled={!selectedProvider || !selectedModel || testModel.isPending} size="sm">
           {testModel.isPending ? <Loader2 className="size-4 animate-spin" /> : <Play className="size-4" />}
@@ -190,7 +190,8 @@ function RouteTestPanel() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3">
+      {/* Test button */}
+      <div className="flex items-center justify-end gap-2 h-9">
         <Select value={selectedModel} onValueChange={(v) => { setSelectedModel(v); setResult(null); }}>
           <SelectTrigger className="w-72"><SelectValue placeholder="Select a model alias..." /></SelectTrigger>
           <SelectContent>
@@ -202,42 +203,44 @@ function RouteTestPanel() {
           Test
         </Button>
       </div>
-      {result ? <ResultCard result={result} onRetry={handleTest} isRetrying={routeTest.isPending} /> : (
-        <Card className="min-h-[140px]"><CardContent className="min-h-[140px] flex items-center justify-center text-sm text-muted-foreground">Select a model and click Test to see results here</CardContent></Card>
-      )}
+
+      {/* Result card */}
+      <Card className="min-h-[160px]">
+        {result ? (
+          <>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  {result.success ? <CheckCircle2 className="size-4 text-green-500" /> : <XCircle className="size-4 text-red-500" />}
+                  <CardTitle className="text-sm font-medium">{result.success ? 'Success' : 'Failed'}</CardTitle>
+                  <Badge variant={result.success ? 'default' : 'destructive'} className="text-xs">{result.latency_ms}ms</Badge>
+                </div>
+                <div className="flex items-center gap-1">
+                  <Button variant="ghost" size="sm" onClick={handleTest} disabled={routeTest.isPending}>
+                    <RotateCw className={`size-3 ${routeTest.isPending ? 'animate-spin' : ''}`} />Retry
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-2 min-h-[80px]">
+              <div className="flex gap-4 text-xs text-muted-foreground">
+                <span>Provider: <span className="text-foreground">{result.provider_name}</span></span>
+                <span>Model: <span className="font-mono text-foreground">{result.model_name}</span></span>
+              </div>
+              <div className="rounded bg-secondary/50 p-3 text-sm font-mono whitespace-pre-wrap min-h-[44px]">
+                {result.response_text && result.response_text}
+                {result.error && <span className="text-red-400">{result.error}</span>}
+                {!result.response_text && !result.error && <span className="text-muted-foreground">No response</span>}
+              </div>
+            </CardContent>
+          </>
+        ) : (
+          <CardContent className="h-[160px] flex items-center justify-center text-sm text-muted-foreground p-0">
+            Select a model and click Test to see results here
+          </CardContent>
+        )}
+      </Card>
     </div>
   );
 }
 
-function ResultCard({ result, onRetry, onDeactivate, onActivate, isRetrying }: {
-  result: PlaygroundTestResult; onRetry: () => void; onDeactivate?: () => void; onActivate?: () => void; isRetrying: boolean;
-}) {
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {result.success ? <CheckCircle2 className="size-4 text-green-500" /> : <XCircle className="size-4 text-red-500" />}
-            <CardTitle className="text-sm font-medium">{result.success ? 'Success' : 'Failed'}</CardTitle>
-            <Badge variant={result.success ? 'default' : 'destructive'} className="text-xs">{result.latency_ms}ms</Badge>
-          </div>
-          <div className="flex items-center gap-1">
-            <Button variant="ghost" size="sm" onClick={onRetry} disabled={isRetrying}>
-              <RotateCw className={`size-3 ${isRetrying ? 'animate-spin' : ''}`} />Retry
-            </Button>
-            {onDeactivate && <Button variant="ghost" size="sm" onClick={onDeactivate} className="text-red-400 hover:text-red-300"><Ban className="size-3" />Deactivate</Button>}
-            {onActivate && <Button variant="ghost" size="sm" onClick={onActivate} className="text-green-400 hover:text-green-300"><CheckCircle2 className="size-3" />Activate</Button>}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
-        <div className="flex gap-4 text-xs text-muted-foreground">
-          <span>Provider: <span className="text-foreground">{result.provider_name}</span></span>
-          <span>Model: <span className="font-mono text-foreground">{result.model_name}</span></span>
-        </div>
-        {result.response_text && <div className="rounded bg-secondary/50 p-3 text-sm font-mono whitespace-pre-wrap">{result.response_text}</div>}
-        {result.error && <div className="rounded bg-red-500/10 border border-red-500/20 p-3 text-sm text-red-400">{result.error}</div>}
-      </CardContent>
-    </Card>
-  );
-}
